@@ -11,11 +11,6 @@
 // Requires the audio shield:
 //   http://www.pjrc.com/store/teensy3_audio.html
 //
-// Three pushbuttons need to be connected:
-//   Record Button: pin 0 to GND
-//   Stop Button:   pin 1 to GND
-//   Play Button:   pin 2 to GND
-//
 // This example code is in the public domain.
 
 #include <Bounce.h>
