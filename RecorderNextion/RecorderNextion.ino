@@ -45,18 +45,16 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 //Bounce buttonPlay =   Bounce(2, 8);
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
-NexButton buttonRecord = NexButton(0,4,"Record");
-NexButton buttonStopRec = NexButton(1,2,"Stop");
-NexButton buttonPlay = NexButton(0,3,"Play");
-NexButton buttonStopPlay = NexButton(2,2,"Stop");
+NexButton buttonRecord = NexButton(0,3,"Record");
+NexButton buttonStop = NexButton(0,2,"Stop");
+NexButton buttonPlay = NexButton(0,1,"Play");
 
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
 {
   &buttonRecord,
-  &buttonStopRec,
+  &buttonStop,
   &buttonPlay,
-  &buttonStopPlay,
   NULL
 };
 
@@ -110,9 +108,8 @@ void setup() {
 
   // Link Callbacks
   buttonRecord.attachPush(RecordButtonCallback);
-  buttonStopRec.attachPush(StopButtonCallback);
+  buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
-  buttonStopPlay.attachPush(StopButtonCallback);
 }
 
 
@@ -218,8 +215,7 @@ void adjustMicLevel() {
 
 // PUSH CALLBACKS
 void RecordButtonCallback(void *ptr)
-{
-  Serial7.print("Timer.val=");
+{;
   Serial7.print("Record");
   if (mode == 2) stopPlaying();
   if (mode == 0) startRecording();
