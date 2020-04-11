@@ -176,25 +176,26 @@ void startRecording() {
 
 
 
+byte headerBuffer[44];
 
-
-String riffID = "RIFF";    
+char riffID[4] = "RIFF";
 int fileSize = "    ";      // Länge des Files - 8 Bytes
-String riffType = "WAVE";
+char riffType[4] = "WAVE";
 
-String formatID = "fmt ";   // Start des Format-Chunks
+char formatID[4] = "fmt ";   // Start des Format-Chunks
 int formatLen = 16;         // Länge des restlichen Headers
 int formatType = 1;         // 1 = PCM = kanonisch, unkomprimiert 
 int nrOfChannels = 1;       // 1 = Mono, 2 = Stereo
 int sampleRate = 44100;
+
+int bitsPerSample = 16;
 int bytesPerSec = (sampleRate * bitsPerSample * nrOfChannels) / 8;
 int blockAlign = (bitsPerSample * nrOfChannels) / 8;
-int bitsPerSample = 16;
 
-String dataID = "data";     // Start des Data-Chunks
+char dataID[4] = "data";     // Start des Data-Chunks
 int dataSize = "    ";      // Länge des Data-Chunks
 
-byte headerBuffer[];
+
 
 //frec.write((byte*)queue1.readBuffer(), 256);   //write(buf, len),   buf = byte-array, len = anzahl El. in buf
 //frec.write(headerBuffer, 44);
