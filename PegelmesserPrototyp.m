@@ -9,8 +9,6 @@ classdef PegelmesserPrototyp < handle
         m_data
         
         m_alpha
-        m_b
-        m_a
     end
     
     methods

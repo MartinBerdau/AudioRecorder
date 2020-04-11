@@ -1,6 +1,5 @@
 tau = 0.125;
 fs = 44100;
-intervals = 0.2;
 
 Messer = PegelmesserPrototyp(tau,fs);
 
