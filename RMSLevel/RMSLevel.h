@@ -15,7 +15,7 @@ Prinzip:Glättung mit TP-Filter 1. Ordnung mit folgenden Koeffizienten:
  */
 
 #pragma once
-#import <math.h>
+#include <math.h>
 
 class RMSLevel{
     
