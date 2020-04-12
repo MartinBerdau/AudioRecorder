@@ -28,6 +28,8 @@
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2 ;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
+// AUDIO ANALYZE RMS HINZUFUEGEN
+AudioAnalyzeRMS      rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
 AudioPlaySdRaw           playRaw1;       //xy=302,157
 AudioOutputI2S           i2s1;           //xy=470,120
@@ -35,11 +37,9 @@ AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, peak1, 0);
 AudioConnection          patchCord3(playRaw1, 0, i2s1, 0);
 AudioConnection          patchCord4(playRaw1, 0, i2s1, 1);
+AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
-
-// AUDIO ANALYZE RMS HINZUFÜGEN
-AudioAnalyzeRMS      rms_mono;
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
 NexButton buttonRecord = NexButton(0,3,"Record");
@@ -72,8 +72,9 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 File frec;
 
 // INITIALISIERUNG DES PEGELMESSERS
+// Villeicht noch 512 als Variable anlegen, so BlockLength oder so?
 double tau = 0.125;
-double fs = 44100;
+double fs = 44100/512;
 RMSLevel rmsMeter(tau,fs);
 
 void setup() {
@@ -151,7 +152,7 @@ void startRecording() {
 void continueRecording() {
   if (queue1.available() >= 2) {
 
-    Serial.println(rmsMeter.updateRMS(rms_mono.read()));
+    Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
     
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
