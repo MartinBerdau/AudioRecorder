@@ -46,12 +46,25 @@ NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
 
+/* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
+   INDIVIDUELL ANPASSEN). DIE SKALA DES SLIDERS MUSS
+   ZWISCHEN 0 und 63 LIEGEN!
+   
+   ES WURDE GANZ UNTEN EIN CALLBACK HINZUGEFÜGT.
+   DER SLIDER WURDE DER NEX_LISTEN_LIST HINZUGEFÜGT.
+   IN DER SETUP WURDE EIN POP CALLBACK ATTACHED.
+   FALLS FEHLER AUFTRETEN, IST WOHL AN DIESEN STELLEN
+   NACHZUGUCKEN.
+   */
+NexSlider sliderGain = NexSlider(0,4,"Gain");
+
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
 {
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
+  &sliderGain,
   NULL
 };
 
@@ -71,10 +84,11 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 // The file where data is recorded
 File frec;
 
-// INITIALISIERUNG DES PEGELMESSERS
-// Villeicht noch 512 als Variable anlegen, so BlockLength oder so?
+// Initialising rms level meter
+// Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
 double tau = 0.125;
-double fs = 44100/512;
+double fs = 44100/512; //divided by block length, because
+// rmsMeter calculates level from 512 samples
 RMSLevel rmsMeter(tau,fs);
 
 void setup() {
@@ -113,6 +127,7 @@ void setup() {
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
+  sliderGain.attachPop(sliderGainCallback);
 }
 
 
@@ -239,4 +254,11 @@ void PlayButtonCallback(void *ptr)
   Serial.println("Play Button Press");
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
+}
+
+void sliderGainCallback(void *ptr)
+{
+  uint32_t sliderValue = 0;
+  sliderGain.getValue(&sliderValue);
+  sgtl5000_1.micGain(sliderValue);
 }
