@@ -1,4 +1,5 @@
 // Version von Martin (für eigenen Branch)
+// Erfordert als zusätzliche Library RMSLevel (von mir)
 //
 // Editiertes Beispiel-File.
 // Die Eingaben sollen ueber ein Nextion-Display gemacht werden.
@@ -22,6 +23,7 @@
 #include <SD.h>
 #include <SerialFlash.h>
 #include <Nextion.h>
+#include <RMSLevel.h>
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2 ;           //xy=105,63
@@ -36,10 +38,8 @@ AudioConnection          patchCord4(playRaw1, 0, i2s1, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
-// Bounce objects to easily and reliably read the buttons
-//Bounce buttonRecord = Bounce(0, 8);
-//Bounce buttonStop =   Bounce(1, 8);  // 8 = 8 ms debounce time
-//Bounce buttonPlay =   Bounce(2, 8);
+// AUDIO ANALYZE RMS HINZUFÜGEN
+AudioAnalyzeRMS      rms_mono;
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
 NexButton buttonRecord = NexButton(0,3,"Record");
@@ -71,8 +71,13 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 // The file where data is recorded
 File frec;
 
-void setup() {
+// INITIALISIERUNG DES PEGELMESSERS
+double tau = 0.125;
+double fs = 44100;
+RMSLevel rmsMeter(tau,fs);
 
+void setup() {
+  
   Serial7.begin(9600);
   delay(500);
   Serial7.print("baud=115200");
@@ -145,6 +150,9 @@ void startRecording() {
 
 void continueRecording() {
   if (queue1.available() >= 2) {
+
+    Serial.println(rmsMeter.updateRMS(rms_mono.read()));
+    
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
     // into a 512 byte buffer.  The Arduino SD library
