@@ -29,7 +29,7 @@
 AudioInputI2S            i2s2 ;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
 // AUDIO ANALYZE RMS HINZUFUEGEN
-AudioAnalyzeRMS      rms_mono;
+AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
 AudioPlaySdRaw           playRaw1;       //xy=302,157
 AudioOutputI2S           i2s1;           //xy=470,120
@@ -45,6 +45,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
+NexButton buttonInput = NexButton(0,12,"Input");
 
 /* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
    INDIVIDUELL ANPASSEN). DIE SKALA DES SLIDERS MUSS
@@ -63,7 +64,8 @@ NexButton buttonPlay = NexButton(0,1,"Play");
    DIESE WIRD IN DER SLIDER-CALLBACK FUNKTION AUF DEN WERT
    DES SLIDERS GESETZT.
    */
-NexSlider sliderGain = NexSlider(0,4,"Gain");
+NexSlider sliderGain = NexSlider(0,11,"Gain");
+NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
@@ -71,14 +73,14 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
+  &buttonInput,
   &sliderGain,
   NULL
 };
 
 // which input on the audio shield will be used?
-const int myInput = AUDIO_INPUT_LINEIN;
-//const int myInput = AUDIO_INPUT_MIC;
-
+int inputMode = 1;
+const int myInput = AUDIO_INPUT_MIC;
 
 // Use these with the Teensy Audio Shield
 #define SDCARD_CS_PIN    10
@@ -131,6 +133,7 @@ void setup() {
   }
 
   // Link Callbacks
+  buttonInput.attachPush(InputButtonCallback);
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
@@ -156,6 +159,19 @@ void loop() {
 }
 
 
+void changeInput(){
+if (inputMode == 1){
+  const int myInput = AUDIO_INPUT_LINEIN;
+  Serial.println("Input: line");
+  inputMode = 2;
+}
+if (inputMode == 2){
+  const int myInput = AUDIO_INPUT_MIC;
+  Serial.println("Input: mic");
+  inputMode = 1;
+}
+}
+
 void startRecording() {
   Serial.println("startRecording");
   if (SD.exists("RECORD.RAW")) {
@@ -175,7 +191,9 @@ void continueRecording() {
   if (queue1.available() >= 2) {
 
     Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
-    
+    uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
+    Serial.println(ProgBarVal);
+    ProgBarLevel.setValue(ProgBarVal); 
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
     // into a 512 byte buffer.  The Arduino SD library
@@ -246,7 +264,11 @@ void RecordButtonCallback(void *ptr)
 {;
   Serial7.print("Record");
   if (mode == 2) stopPlaying();
-  if (mode == 0) startRecording();
+  if (mode == 0) 
+  {
+    startRecording();
+  }
+  
 }
 
 void StopButtonCallback(void *ptr)
@@ -261,6 +283,19 @@ void PlayButtonCallback(void *ptr)
   Serial.println("Play Button Press");
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
+}
+
+void InputButtonCallback(void *ptr)
+{
+  Serial.println("Input Button Press");
+  if (inputMode == 1)
+  {
+    changeInput();
+  }
+  if (inputMode == 2)
+  {
+    changeInput();
+  }
 }
 
 void sliderGainCallback(void *ptr)
