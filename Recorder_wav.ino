@@ -71,6 +71,10 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 // The file where data is recorded
 File frec;
 
+// Length of recorded data (in bytes) for wav-header
+int recLength;
+
+
 void setup() {
   // Configure the pushbutton pins
   pinMode(0, INPUT_PULLUP);
@@ -137,18 +141,21 @@ void loop() {
 
 void startRecording() {
   Serial.println("startRecording");
-  if (SD.exists("RECORD.RAW")) {
+  if (SD.exists("RECORD.WAV")) {
     // The SD library writes new data to the end of the
     // file, so to start a new recording, the old file
     // must be deleted before new data is written.
-    SD.remove("RECORD.RAW");
+    SD.remove("RECORD.WAV");
   }
-  frec = SD.open("RECORD.RAW", FILE_WRITE);
+  frec = SD.open("RECORD.WAV", FILE_WRITE);
   if (frec) {
+    writeWaveHeader();
     queue1.begin();
     mode = 1;
   }
 }
+
+void writeWaveHeader() {
 // Unterschied Raw zu Wave ist nur der Header bei Wave -> Filegröße im Header nach der Aufnahme einfügen
 // Code im Moodle-Kurs (Java)
 //
@@ -158,24 +165,7 @@ void startRecording() {
 // xxx:
 //.........
 
-// RIFF-Header:
-// chunkID (char[4], "RIFF")
-// ChunkSize (unit32_t, = Dateilänge in Bytes-8;)
-// riffType (char[4], "WAVE")
-// => 12 Byte lang
-
-// Format-Abschnitt:
-// beginnt mit Kennung 'fmt ', genau einmal enthalten
-// Auf ChunkSize folgt Inhalt, bestehend aus allgemeinem und speziellem Teil
-//    Allgemein: wFormatTag: Format-Identifizierung,0x0001 für PCM (kanonisch, unkomprimiert)
-//               wChannels(uint16_t)
-//               dwSamplesPerSec (uint32_t): Abtastrate in Hz
-//               dwAvgBytesPerSec (unint32_t): nötige Übertragungsbandbreite (wenn keine Kompression verwendet: Produkt aus Abtastrate und Framegröße
-//               wBlockAlign (unint16_t): Größe der Frames in Bytes, für PCM: wBlockAlign = wChannels * ((wBitsPerSample + 7) / 8);
-//    Für PCM
-
-
-
+/*
 byte headerBuffer[44];
 
 char riffID[4] = "RIFF";
@@ -194,11 +184,49 @@ int blockAlign = (bitsPerSample * nrOfChannels) / 8;
 
 char dataID[4] = "data";     // Start des Data-Chunks
 int dataSize = "    ";      // Länge des Data-Chunks
-
+*/
 
 
 //frec.write((byte*)queue1.readBuffer(), 256);   //write(buf, len),   buf = byte-array, len = anzahl El. in buf
-//frec.write(headerBuffer, 44);
+//frec.write((byte *)&headerBuffer, 44);
+
+struct waveHeader {
+  char  riff[4];        /* "RIFF"                                  */
+  long  flength;        /* file length in bytes                    */
+  char  wave[4];        /* "WAVE"                                  */
+  
+  char  fmt[4];         /* "fmt "                                  */
+  long  chunk_size;     /* size of FMT chunk in bytes (usually 16) */
+  short format_tag;     /* 1=PCM, 257=Mu-Law, 258=A-Law, 259=ADPCM */
+  short num_chans;      /* 1=mono, 2=stereo                        */
+  long  srate;          /* Sampling rate in samples per second     */
+  long  bytes_per_sec;  /* bytes per second = srate*bytes_per_samp */
+  short bytes_per_samp; /* 2=16-bit mono, 4=16-bit stereo          */
+  short bits_per_samp;  /* Number of bits per sample               */
+  
+  char  data[4];        /* "data"                                  */
+  long  dlength;        /* data length in bytes (filelength - 44)  */
+} wavh;
+
+  // It's easy enough to initialize the strings
+  strncpy(wavh.riff,"RIFF",4);
+  strncpy(wavh.wave,"WAVE",4);
+  strncpy(wavh.fmt,"fmt ",4);
+  strncpy(wavh.data,"data",4);
+
+  wavh.flength = 2036; // Dummy bis richtige Größe bekannt
+  wavh.dlength = 2000; // Dummy is richtige Größe bekannt
+  
+  wavh.chunk_size = 16; // size of FMT chunk in bytes
+  wavh.format_tag = 1; // PCM
+  wavh.num_chans = 1; // mono
+ 
+  wavh.srate = 44100;
+  wavh.bytes_per_sec = 44100 * 2;
+  wavh.bytes_per_samp = 2;
+  wavh.bits_per_samp = 16;
+
+frec.write((byte*)&wavh, 44);
 /* write WAV (RIFF) header
     public void writeWavHeader() {
 
@@ -241,7 +269,9 @@ int dataSize = "    ";      // Länge des Data-Chunks
             raFile.close();
 
     }
-*/    
+*/
+}
+    
 void continueRecording() {
   if (queue1.available() >= 2) {
     byte buffer[512];
@@ -256,6 +286,8 @@ void continueRecording() {
     // write all 512 bytes to the SD card
     //elapsedMicros usec = 0;
     frec.write(buffer, 512);
+
+    recLength += buffer.size();
     // Uncomment these lines to see how long SD writes
     // are taking.  A pair of audio blocks arrives every
     // 5802 microseconds, so hopefully most of the writes
@@ -277,7 +309,9 @@ void stopRecording() {
   if (mode == 1) {
     while (queue1.available() > 0) {
       frec.write((byte*)queue1.readBuffer(), 256);
+      recLength += buffer.size();
       queue1.freeBuffer();
+      
     }
     frec.close();
   }
@@ -287,7 +321,7 @@ void stopRecording() {
 
 void startPlaying() {
   Serial.println("startPlaying");
-  playRaw1.play("RECORD.RAW");
+  playRaw1.play("RECORD.WAV");
   mode = 2;
 }
 
