@@ -1,15 +1,12 @@
-// Editiertes Beispiel-File.
-// Die Eingaben sollen ueber ein Nextion-Display gemacht werden.
-// Es wird zum Ausfuehren noch die Nextion-Library benoetigt.
-// Es werden 3 Knöpfe auf dem Nextion erstellt und die Funktionen
-// durch Callbacks (ganz untern zu finden) aufgerufen.
-// Neben dem Beispielprojekt wurde das folgende Video verwendet:
-// https://www.youtube.com/watch?v=mdkUBB60HoI
-//
 // Record sound as raw data to a SD card, and play it back.
 //
 // Requires the audio shield:
 //   http://www.pjrc.com/store/teensy3_audio.html
+//
+// Three pushbuttons need to be connected:
+//   Record Button: pin 0 to GND
+//   Stop Button:   pin 1 to GND
+//   Play Button:   pin 2 to GND
 //
 // This example code is in the public domain.
 
@@ -19,10 +16,9 @@
 #include <SPI.h>
 #include <SD.h>
 #include <SerialFlash.h>
-#include <Nextion.h>
 
 // GUItool: begin automatically generated code
-AudioInputI2S            i2s2 ;           //xy=105,63
+AudioInputI2S            i2s2;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
 AudioRecordQueue         queue1;         //xy=281,63
 AudioPlaySdRaw           playWav1;       //xy=302,157
@@ -34,24 +30,19 @@ AudioConnection          patchCord4(playWav1, 0, i2s1, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
 
+// For a stereo recording version, see this forum thread:
+// https://forum.pjrc.com/threads/46150?p=158388&viewfull=1#post158388
+
+// A much more advanced sound recording and data logging project:
+// https://github.com/WMXZ-EU/microSoundRecorder
+// https://github.com/WMXZ-EU/microSoundRecorder/wiki/Hardware-setup
+// https://forum.pjrc.com/threads/52175?p=185386&viewfull=1#post185386
+
 // Bounce objects to easily and reliably read the buttons
-//Bounce buttonRecord = Bounce(0, 8);
-//Bounce buttonStop =   Bounce(1, 8);  // 8 = 8 ms debounce time
-//Bounce buttonPlay =   Bounce(2, 8);
+Bounce buttonRecord = Bounce(0, 8);
+Bounce buttonStop =   Bounce(1, 8);  // 8 = 8 ms debounce time
+Bounce buttonPlay =   Bounce(2, 8);
 
-// Nextion Buttons: NexButton(int page, int objectID, string name)
-NexButton buttonRecord = NexButton(0,3,"Record");
-NexButton buttonStop = NexButton(0,2,"Stop");
-NexButton buttonPlay = NexButton(0,1,"Play");
-
-// Liste mit Buttons
-NexTouch *nex_listen_list[] =
-{
-  &buttonRecord,
-  &buttonStop,
-  &buttonPlay,
-  NULL
-};
 
 // which input on the audio shield will be used?
 const int myInput = AUDIO_INPUT_LINEIN;
@@ -60,8 +51,8 @@ const int myInput = AUDIO_INPUT_LINEIN;
 
 // Use these with the Teensy Audio Shield
 #define SDCARD_CS_PIN    10
-#define SDCARD_MOSI_PIN  11
-#define SDCARD_SCK_PIN   13
+#define SDCARD_MOSI_PIN  7
+#define SDCARD_SCK_PIN   14
 
 // Remember which mode we're doing
 int mode = 0;  // 0=stopped, 1=recording, 2=playing
@@ -84,17 +75,11 @@ unsigned long NumSamples = 0L;
 byte byte1, byte2, byte3, byte4;
 
 void setup() {
+  // Configure the pushbutton pins
+  pinMode(0, INPUT_PULLUP);
+  pinMode(1, INPUT_PULLUP);
+  pinMode(2, INPUT_PULLUP);
 
-  Serial7.begin(9600);
-  delay(500);
-  Serial7.print("baud=115200");
-  Serial7.write(0xff);
-  Serial7.write(0xff);
-  Serial7.write(0xff);
-  Serial7.end();
-
-  Serial7.begin(115200);
-  
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
   AudioMemory(256);
@@ -102,7 +87,7 @@ void setup() {
   // Enable the audio shield, select input, and enable output
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
-  sgtl5000_1.volume(0.5);
+  sgtl5000_1.volume(0.9);
 
   // Initialize the SD card
   SPI.setMOSI(SDCARD_MOSI_PIN);
@@ -114,18 +99,31 @@ void setup() {
       delay(500);
     }
   }
-
-  // Link Callbacks
-  buttonRecord.attachPush(RecordButtonCallback);
-  buttonStop.attachPush(StopButtonCallback);
-  buttonPlay.attachPush(PlayButtonCallback);
 }
 
 
 void loop() {
+  // First, read the buttons
+  buttonRecord.update();
+  buttonStop.update();
+  buttonPlay.update();
 
   // Respond to button presses
-  nexLoop(nex_listen_list);
+  if (buttonRecord.fallingEdge()) {
+    Serial.println("Record Button Press");
+    if (mode == 2) stopPlaying();
+    if (mode == 0) startRecording();
+  }
+  if (buttonStop.fallingEdge()) {
+    Serial.println("Stop Button Press");
+    if (mode == 1) stopRecording();
+    if (mode == 2) stopPlaying();
+  }
+  if (buttonPlay.fallingEdge()) {
+    Serial.println("Play Button Press");
+    if (mode == 1) stopRecording();
+    if (mode == 0) startPlaying();
+  }
 
   // If we're playing or recording, carry on...
   if (mode == 1) {
@@ -152,10 +150,10 @@ void startRecording() {
   if (frec) {
     queue1.begin();
     mode = 1;
-     recByteSaved = 0L;
+    recByteSaved = 0L;
   }
 }
-
+    
 void continueRecording() {
   if (queue1.available() >= 2) {
     byte buffer[512];
@@ -166,7 +164,7 @@ void continueRecording() {
     memcpy(buffer, queue1.readBuffer(), 256);
     queue1.freeBuffer();
     memcpy(buffer+256, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
+    queue1.freeBuffer(); 
     // write all 512 bytes to the SD card
     //elapsedMicros usec = 0;
     frec.write(buffer, 512);
@@ -222,10 +220,6 @@ void stopPlaying() {
   mode = 0;
 }
 
-void adjustMicLevel() {
-  // TODO: read the peak1 object and adjust sgtl5000_1.micGain()
-  // if anyone gets this working, please submit a github pull request :-)
-}
 void writeWaveHeader() { // update WAV header with final filesize/datasize
   // Quelle: https://gist.github.com/JarvusChen/fb641cad18eca4988a9e83a9ce65f42f
 
@@ -287,25 +281,7 @@ void writeWaveHeader() { // update WAV header with final filesize/datasize
   //Serial.print("Subchunk2: "); 
   //Serial.println(Subchunk2Size); 
 }
-
-// PUSH CALLBACKS
-void RecordButtonCallback(void *ptr)
-{;
-  Serial7.print("Record");
-  if (mode == 2) stopPlaying();
-  if (mode == 0) startRecording();
-}
-
-void StopButtonCallback(void *ptr)
-{
-  Serial.println("Stop Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 2) stopPlaying();
-}
-
-void PlayButtonCallback(void *ptr)
-{
-  Serial.println("Play Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 0) startPlaying();
+void adjustMicLevel() {
+  // TODO: read the peak1 object and adjust sgtl5000_1.micGain()
+  // if anyone gets this working, please submit a github pull request :-)
 }
