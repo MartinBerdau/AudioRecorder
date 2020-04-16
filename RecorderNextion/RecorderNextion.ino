@@ -80,7 +80,8 @@ NexTouch *nex_listen_list[] =
 
 // which input on the audio shield will be used?
 int inputMode = 1;
-const int myInput = AUDIO_INPUT_MIC;
+//const int myInput = AUDIO_INPUT_MIC;
+const int myInput = AUDIO_INPUT_LINEIN;
 
 // Use these with the Teensy Audio Shield
 #define SDCARD_CS_PIN    10
@@ -161,14 +162,12 @@ void loop() {
 
 void changeInput(){
 if (inputMode == 1){
-  const int myInput = AUDIO_INPUT_LINEIN;
+  //myInput = AUDIO_INPUT_LINEIN;
   Serial.println("Input: line");
-  inputMode = 2;
 }
-if (inputMode == 2){
-  const int myInput = AUDIO_INPUT_MIC;
+if (inputMode == 2) {
+  //myInput = AUDIO_INPUT_MIC;
   Serial.println("Input: mic");
-  inputMode = 1;
 }
 }
 
@@ -291,10 +290,14 @@ void InputButtonCallback(void *ptr)
   if (inputMode == 1)
   {
     changeInput();
+    inputMode = 2;
+    return;
   }
   if (inputMode == 2)
   {
     changeInput();
+    inputMode = 1;
+    return;
   }
 }
 
