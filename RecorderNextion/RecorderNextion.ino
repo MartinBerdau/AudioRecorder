@@ -37,6 +37,8 @@ AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, peak1, 0);
 AudioConnection          patchCord3(playRaw1, 0, i2s1, 0);
 AudioConnection          patchCord4(playRaw1, 0, i2s1, 1);
+AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
+AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
 AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
@@ -64,7 +66,7 @@ NexButton buttonInput = NexButton(0,12,"Input");
    DIESE WIRD IN DER SLIDER-CALLBACK FUNKTION AUF DEN WERT
    DES SLIDERS GESETZT.
    */
-NexSlider sliderGain = NexSlider(0,11,"Gain");
+//NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 
 // Liste mit Buttons
@@ -74,14 +76,13 @@ NexTouch *nex_listen_list[] =
   &buttonStop,
   &buttonPlay,
   &buttonInput,
-  &sliderGain,
+//  &sliderGain,
   NULL
 };
 
 // which input on the audio shield will be used?
 int inputMode = 1;
-//const int myInput = AUDIO_INPUT_MIC;
-const int myInput = AUDIO_INPUT_LINEIN;
+int myInput = AUDIO_INPUT_LINEIN;
 
 // Use these with the Teensy Audio Shield
 #define SDCARD_CS_PIN    10
@@ -101,10 +102,13 @@ double fs = 44100/512; //divided by block length, because
 // rmsMeter calculates level from 512 samples
 RMSLevel rmsMeter(tau,fs);
 
+//uint32_t sliderValue = 50;
+
+
 void setup() {
-  
-  Serial7.begin(9600);
-  delay(500);
+
+  nexInit();
+  //Serial7.begin(9600);
   Serial7.print("baud=115200");
   Serial7.write(0xff);
   Serial7.write(0xff);
@@ -112,6 +116,7 @@ void setup() {
   Serial7.end();
 
   Serial7.begin(115200);
+//  sliderGain.setValue(sliderValue);
   
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
@@ -138,7 +143,7 @@ void setup() {
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
-  sliderGain.attachPop(sliderGainCallback);
+//  sliderGain.attachPop(sliderGainCallback);
 }
 
 
@@ -162,11 +167,11 @@ void loop() {
 
 void changeInput(){
 if (inputMode == 1){
-  //myInput = AUDIO_INPUT_LINEIN;
+  myInput = AUDIO_INPUT_LINEIN;
   Serial.println("Input: line");
 }
 if (inputMode == 2) {
-  //myInput = AUDIO_INPUT_MIC;
+  myInput = AUDIO_INPUT_MIC;
   Serial.println("Input: mic");
 }
 }
@@ -189,9 +194,9 @@ void startRecording() {
 void continueRecording() {
   if (queue1.available() >= 2) {
 
-    Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
+    //Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
     uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
-    Serial.println(ProgBarVal);
+    //Serial.println(ProgBarVal);
     ProgBarLevel.setValue(ProgBarVal); 
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
@@ -299,11 +304,10 @@ void InputButtonCallback(void *ptr)
     inputMode = 1;
     return;
   }
+  sgtl5000_1.inputSelect(myInput);
 }
 
-void sliderGainCallback(void *ptr)
-{
-  uint32_t sliderValue = 0;
-  sliderGain.getValue(&sliderValue);
-  sgtl5000_1.micGain(sliderValue);
-}
+//void sliderGainCallback(void *ptr)
+//{
+//  sgtl5000_1.micGain(sliderGain.getValue(&sliderValue));
+//}
