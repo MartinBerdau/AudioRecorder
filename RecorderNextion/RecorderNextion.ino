@@ -1,3 +1,6 @@
+// Version von Martin (für eigenen Branch)
+// Erfordert als zusätzliche Library RMSLevel (von mir)
+//
 // Editiertes Beispiel-File.
 // Die Eingaben sollen ueber ein Nextion-Display gemacht werden.
 // Es wird zum Ausfuehren noch die Nextion-Library benoetigt.
@@ -20,10 +23,13 @@
 #include <SD.h>
 #include <SerialFlash.h>
 #include <Nextion.h>
+#include <RMSLevel.h>
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2 ;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
+// AUDIO ANALYZE RMS HINZUFUEGEN
+AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
 AudioPlaySdRaw           playRaw1;       //xy=302,157
 AudioOutputI2S           i2s1;           //xy=470,120
@@ -31,18 +37,37 @@ AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, peak1, 0);
 AudioConnection          patchCord3(playRaw1, 0, i2s1, 0);
 AudioConnection          patchCord4(playRaw1, 0, i2s1, 1);
+AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
+AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
+AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 // GUItool: end automatically generated code
-
-// Bounce objects to easily and reliably read the buttons
-//Bounce buttonRecord = Bounce(0, 8);
-//Bounce buttonStop =   Bounce(1, 8);  // 8 = 8 ms debounce time
-//Bounce buttonPlay =   Bounce(2, 8);
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
+NexButton buttonInput = NexButton(0,12,"Input");
+
+/* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
+   INDIVIDUELL ANPASSEN). DIE SKALA DES SLIDERS MUSS
+   ZWISCHEN 0 und 63 LIEGEN!
+   
+   ES WURDE GANZ UNTEN EIN CALLBACK HINZUGEFÜGT.
+   DER SLIDER WURDE DER NEX_LISTEN_LIST HINZUGEFÜGT.
+   IN DER SETUP WURDE EIN POP CALLBACK ATTACHED.
+   FALLS FEHLER AUFTRETEN, IST WOHL AN DIESEN STELLEN
+   NACHZUGUCKEN.
+
+   FUNKTIONSWEISE:
+   DER GAIN DES INPUTS KANN ZWISCHEN 0 UND 63 DB EINGESTELLT
+   WERDEN (LAUT DOC). DAZU WIRD AUF DAS sgtl5000_1-OBJEKT
+   ZUGEGRIFFEN, WELCHES DIE FUNKTION micGain BESITZT.
+   DIESE WIRD IN DER SLIDER-CALLBACK FUNKTION AUF DEN WERT
+   DES SLIDERS GESETZT.
+   */
+//NexSlider sliderGain = NexSlider(0,11,"Gain");
+NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
@@ -50,13 +75,14 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
+  &buttonInput,
+//  &sliderGain,
   NULL
 };
 
 // which input on the audio shield will be used?
-const int myInput = AUDIO_INPUT_LINEIN;
-//const int myInput = AUDIO_INPUT_MIC;
-
+int inputMode = 1;
+int myInput = AUDIO_INPUT_LINEIN;
 
 // Use these with the Teensy Audio Shield
 #define SDCARD_CS_PIN    10
@@ -69,10 +95,20 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 // The file where data is recorded
 File frec;
 
+// Initialising rms level meter
+// Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
+double tau = 0.125;
+double fs = 44100/512; //divided by block length, because
+// rmsMeter calculates level from 512 samples
+RMSLevel rmsMeter(tau,fs);
+
+//uint32_t sliderValue = 50;
+
+
 void setup() {
 
-  Serial7.begin(9600);
-  delay(500);
+  nexInit();
+  //Serial7.begin(9600);
   Serial7.print("baud=115200");
   Serial7.write(0xff);
   Serial7.write(0xff);
@@ -80,6 +116,7 @@ void setup() {
   Serial7.end();
 
   Serial7.begin(115200);
+//  sliderGain.setValue(sliderValue);
   
   // Audio connections require memory, and the record queue
   // uses this memory to buffer incoming audio.
@@ -102,9 +139,11 @@ void setup() {
   }
 
   // Link Callbacks
+  buttonInput.attachPush(InputButtonCallback);
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
+//  sliderGain.attachPop(sliderGainCallback);
 }
 
 
@@ -126,6 +165,17 @@ void loop() {
 }
 
 
+void changeInput(){
+if (inputMode == 1){
+  myInput = AUDIO_INPUT_LINEIN;
+  Serial.println("Input: line");
+}
+if (inputMode == 2) {
+  myInput = AUDIO_INPUT_MIC;
+  Serial.println("Input: mic");
+}
+}
+
 void startRecording() {
   Serial.println("startRecording");
   if (SD.exists("RECORD.RAW")) {
@@ -143,6 +193,11 @@ void startRecording() {
 
 void continueRecording() {
   if (queue1.available() >= 2) {
+
+    //Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
+    uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
+    //Serial.println(ProgBarVal);
+    ProgBarLevel.setValue(ProgBarVal); 
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
     // into a 512 byte buffer.  The Arduino SD library
@@ -213,7 +268,11 @@ void RecordButtonCallback(void *ptr)
 {;
   Serial7.print("Record");
   if (mode == 2) stopPlaying();
-  if (mode == 0) startRecording();
+  if (mode == 0) 
+  {
+    startRecording();
+  }
+  
 }
 
 void StopButtonCallback(void *ptr)
@@ -229,3 +288,26 @@ void PlayButtonCallback(void *ptr)
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
 }
+
+void InputButtonCallback(void *ptr)
+{
+  Serial.println("Input Button Press");
+  if (inputMode == 1)
+  {
+    changeInput();
+    inputMode = 2;
+    return;
+  }
+  if (inputMode == 2)
+  {
+    changeInput();
+    inputMode = 1;
+    return;
+  }
+  sgtl5000_1.inputSelect(myInput);
+}
+
+//void sliderGainCallback(void *ptr)
+//{
+//  sgtl5000_1.micGain(sliderGain.getValue(&sliderValue));
+//}
