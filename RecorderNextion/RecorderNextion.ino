@@ -24,12 +24,10 @@
 #include <SerialFlash.h>
 #include <Nextion.h>
 #include <RMSLevel.h>
-#include <Parameter.h>
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2 ;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
-// AUDIO ANALYZE RMS HINZUFUEGEN
 AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
 AudioPlaySdRaw           playRaw1;       //xy=302,157
@@ -89,7 +87,6 @@ RMSLevel rmsMeter(tau,fs);
 void setup() {
   
   nexInit();
-  //Serial7.begin(9600);
   Serial7.print("baud=115200");
   Serial7.write(0xff);
   Serial7.write(0xff);
@@ -139,18 +136,6 @@ void loop() {
   if (mode == 2) {
     continuePlaying();
   }
-}
-
-
-void changeInput(){
-if (inputMode == 1){
-  myInput = AUDIO_INPUT_LINEIN;
-  Serial.println("Input: line");
-}
-if (inputMode == 2) {
-  myInput = AUDIO_INPUT_MIC;
-  Serial.println("Input: mic");
-}
 }
 
 void startRecording() {
