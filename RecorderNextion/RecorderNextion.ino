@@ -24,6 +24,7 @@
 #include <SerialFlash.h>
 #include <Nextion.h>
 #include <RMSLevel.h>
+#include <Parameter.h>
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2 ;           //xy=105,63
@@ -47,25 +48,6 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
-NexButton buttonInput = NexButton(0,12,"Input");
-
-/* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
-   INDIVIDUELL ANPASSEN). DIE SKALA DES SLIDERS MUSS
-   ZWISCHEN 0 und 63 LIEGEN!
-   
-   ES WURDE GANZ UNTEN EIN CALLBACK HINZUGEFÜGT.
-   DER SLIDER WURDE DER NEX_LISTEN_LIST HINZUGEFÜGT.
-   IN DER SETUP WURDE EIN POP CALLBACK ATTACHED.
-   FALLS FEHLER AUFTRETEN, IST WOHL AN DIESEN STELLEN
-   NACHZUGUCKEN.
-
-   FUNKTIONSWEISE:
-   DER GAIN DES INPUTS KANN ZWISCHEN 0 UND 63 DB EINGESTELLT
-   WERDEN (LAUT DOC). DAZU WIRD AUF DAS sgtl5000_1-OBJEKT
-   ZUGEGRIFFEN, WELCHES DIE FUNKTION micGain BESITZT.
-   DIESE WIRD IN DER SLIDER-CALLBACK FUNKTION AUF DEN WERT
-   DES SLIDERS GESETZT.
-   */
 //NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 
@@ -75,7 +57,6 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
-  &buttonInput,
 //  &sliderGain,
   NULL
 };
@@ -106,7 +87,7 @@ RMSLevel rmsMeter(tau,fs);
 
 
 void setup() {
-
+  
   nexInit();
   //Serial7.begin(9600);
   Serial7.print("baud=115200");
@@ -139,7 +120,6 @@ void setup() {
   }
 
   // Link Callbacks
-  buttonInput.attachPush(InputButtonCallback);
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
@@ -159,9 +139,6 @@ void loop() {
   if (mode == 2) {
     continuePlaying();
   }
-
-  // when using a microphone, continuously adjust gain
-  if (myInput == AUDIO_INPUT_MIC) adjustMicLevel();
 }
 
 
@@ -194,7 +171,6 @@ void startRecording() {
 void continueRecording() {
   if (queue1.available() >= 2) {
 
-    //Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
     uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
     //Serial.println(ProgBarVal);
     ProgBarLevel.setValue(ProgBarVal); 
@@ -210,18 +186,6 @@ void continueRecording() {
     // write all 512 bytes to the SD card
     //elapsedMicros usec = 0;
     frec.write(buffer, 512);
-    // Uncomment these lines to see how long SD writes
-    // are taking.  A pair of audio blocks arrives every
-    // 5802 microseconds, so hopefully most of the writes
-    // take well under 5802 us.  Some will take more, as
-    // the SD library also must write to the FAT tables
-    // and the SD card controller manages media erase and
-    // wear leveling.  The queue1 object can buffer
-    // approximately 301700 us of audio, to allow time
-    // for occasional high SD card latency, as long as
-    // the average write time is under 5802 us.
-    //Serial.print("SD write, us=");
-    //Serial.println(usec);
   }
 }
 
@@ -237,7 +201,6 @@ void stopRecording() {
   }
   mode = 0;
 }
-
 
 void startPlaying() {
   Serial.println("startPlaying");
@@ -258,12 +221,7 @@ void stopPlaying() {
   mode = 0;
 }
 
-void adjustMicLevel() {
-  // TODO: read the peak1 object and adjust sgtl5000_1.micGain()
-  // if anyone gets this working, please submit a github pull request :-)
-}
-
-// PUSH CALLBACKS
+// CALLBACKS
 void RecordButtonCallback(void *ptr)
 {;
   Serial7.print("Record");
@@ -288,26 +246,3 @@ void PlayButtonCallback(void *ptr)
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
 }
-
-void InputButtonCallback(void *ptr)
-{
-  Serial.println("Input Button Press");
-  if (inputMode == 1)
-  {
-    changeInput();
-    inputMode = 2;
-    return;
-  }
-  if (inputMode == 2)
-  {
-    changeInput();
-    inputMode = 1;
-    return;
-  }
-  sgtl5000_1.inputSelect(myInput);
-}
-
-//void sliderGainCallback(void *ptr)
-//{
-//  sgtl5000_1.micGain(sliderGain.getValue(&sliderValue));
-//}
