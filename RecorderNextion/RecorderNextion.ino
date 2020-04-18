@@ -24,6 +24,7 @@
 #include <SerialFlash.h>
 #include <Nextion.h>
 #include <RMSLevel.h>
+#include <string>
 
 // GUItool: begin automatically generated code
 AudioInputI2S            i2s2 ;           //xy=105,63
@@ -41,13 +42,14 @@ AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
 AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
 AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
+IntervalTimer            TimerRec;
 // GUItool: end automatically generated code
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
-NexButton buttonInput = NexButton(0,12,"Input");
+//NexButton buttonInput = NexButton(0,12,"Input");
 
 /* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
    INDIVIDUELL ANPASSEN). DIE SKALA DES SLIDERS MUSS
@@ -66,8 +68,9 @@ NexButton buttonInput = NexButton(0,12,"Input");
    DIESE WIRD IN DER SLIDER-CALLBACK FUNKTION AUF DEN WERT
    DES SLIDERS GESETZT.
    */
-//NexSlider sliderGain = NexSlider(0,11,"Gain");
+NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
+NexText textTimer = NexText(0,7,"Timer");
 
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
@@ -75,8 +78,8 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
-  &buttonInput,
-//  &sliderGain,
+//  &uttonInput,
+  &sliderGain,
   NULL
 };
 
@@ -102,13 +105,19 @@ double fs = 44100/512; //divided by block length, because
 // rmsMeter calculates level from 512 samples
 RMSLevel rmsMeter(tau,fs);
 
-//uint32_t sliderValue = 50;
+uint32_t sliderValue = 50;
+
+//variables for Timer
+int counterSec = 0;
+int counterMin = 0;
+int counterHr = 0;
+char TimerVal[] = "00:00:00";
+
 
 
 void setup() {
 
   nexInit();
-  //Serial7.begin(9600);
   Serial7.print("baud=115200");
   Serial7.write(0xff);
   Serial7.write(0xff);
@@ -139,7 +148,7 @@ void setup() {
   }
 
   // Link Callbacks
-  buttonInput.attachPush(InputButtonCallback);
+  //buttonInput.attachPush(InputButtonCallback);
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
@@ -178,6 +187,7 @@ if (inputMode == 2) {
 
 void startRecording() {
   Serial.println("startRecording");
+  TimerRec.begin(TimerUpdate,1000000);
   if (SD.exists("RECORD.RAW")) {
     // The SD library writes new data to the end of the
     // file, so to start a new recording, the old file
@@ -227,6 +237,8 @@ void continueRecording() {
 
 void stopRecording() {
   Serial.println("stopRecording");
+  TimerRec.end();
+  resetTimer();
   queue1.end();
   if (mode == 1) {
     while (queue1.available() > 0) {
@@ -263,6 +275,35 @@ void adjustMicLevel() {
   // if anyone gets this working, please submit a github pull request :-)
 }
 
+void TimerUpdate(){
+  counterSec += 1;
+  if(counterSec >= 60){
+    counterSec = 0;
+    counterMin += 1;
+    if (counterMin >= 60){
+      counterMin = 0;
+      counterHr += 1;
+    }
+  } 
+  TimerVal[0] = char(int(floor(counterHr/10))+'0');
+  TimerVal[1] = char(int(counterHr%10)+'0');
+  TimerVal[3] = char(int(floor(counterMin/10))+'0');
+  TimerVal[4] = char(int(counterMin%10)+'0');
+  TimerVal[6] = char(int(floor(counterSec/10))+'0');
+  TimerVal[7] = char(int(counterSec%10)+'0');
+  
+
+  Serial.println(TimerVal);
+  textTimer.setText(TimerVal);
+
+}
+
+void resetTimer(){
+  counterSec = 0;
+  counterMin = 0;
+  counterHr = 0;
+}
+
 // PUSH CALLBACKS
 void RecordButtonCallback(void *ptr)
 {;
@@ -289,25 +330,25 @@ void PlayButtonCallback(void *ptr)
   if (mode == 0) startPlaying();
 }
 
-void InputButtonCallback(void *ptr)
-{
-  Serial.println("Input Button Press");
-  if (inputMode == 1)
-  {
-    changeInput();
-    inputMode = 2;
-    return;
-  }
-  if (inputMode == 2)
-  {
-    changeInput();
-    inputMode = 1;
-    return;
-  }
-  sgtl5000_1.inputSelect(myInput);
-}
-
-//void sliderGainCallback(void *ptr)
+//void InputButtonCallback(void *ptr)
 //{
-//  sgtl5000_1.micGain(sliderGain.getValue(&sliderValue));
+//  Serial.println("Input Button Press");
+//  if (inputMode == 1)
+//  {
+//    changeInput();
+//    inputMode = 2;
+//    return;
+//  }
+//  if (inputMode == 2)
+//  {
+//    changeInput();
+//    inputMode = 1;
+//    return;
+//  }
+//  sgtl5000_1.inputSelect(myInput);
 //}
+
+void sliderGainCallback(void *ptr)
+{
+  sgtl5000_1.micGain(sliderGain.getValue(&sliderValue));
+}
