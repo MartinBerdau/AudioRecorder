@@ -1,4 +1,17 @@
 // Version von Martin (für eigenen Branch)
+//
+// Was ist neu:
+// Das Pegelmeter wird jetzt immer durch die Funktion
+// displayLvl() im Loop aufgerufen wenn der Boolean
+// checkLvl true ist. Das geschieht durch Drücken von
+// Buttons oder beim Aufruf bestimmter Funktionen
+// (startRecording -> true, stopRecording -> false)
+//
+// Was muss gemacht werden:
+// Ein Button, um checkLvl auf true zu setzen und ein Button,
+// welcher diesen nach dem Drücken ersetzt und beim Drücken
+// checkLvl auf false setzt.
+//
 // Erfordert als zusätzliche Library RMSLevel (von mir)
 //
 // Editiertes Beispiel-File.
@@ -46,6 +59,13 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
+
+// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
+// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
+// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
+// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
+NexButton buttonStartCheckLvl = NexButton(0,4,"StartLvl");
+NexButton buttonStopCheckLvl = NexButton(0,5,"StopLvl");
 //NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 
@@ -55,6 +75,8 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
+  &buttonStartCheckLvl,
+  &buttonStopCheckLvl,
 //  &sliderGain,
   NULL
 };
@@ -80,6 +102,7 @@ double tau = 0.125;
 double fs = 44100/512; //divided by block length, because
 // rmsMeter calculates level from 512 samples
 RMSLevel rmsMeter(tau,fs);
+bool checkLvl = false;
 
 //uint32_t sliderValue = 50;
 
@@ -120,6 +143,8 @@ void setup() {
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
+  buttonPlay.attachPush(buttonStartCheckLvlCallback);
+  buttonPlay.attachPush(buttonStopCheckLvlCallback);
 //  sliderGain.attachPop(sliderGainCallback);
 }
 
@@ -136,6 +161,9 @@ void loop() {
   if (mode == 2) {
     continuePlaying();
   }
+  if (checkLvl){
+    displayLvl();
+  }
 }
 
 void startRecording() {
@@ -150,15 +178,12 @@ void startRecording() {
   if (frec) {
     queue1.begin();
     mode = 1;
+    checkLvl = true;
   }
 }
 
 void continueRecording() {
   if (queue1.available() >= 2) {
-
-    uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
-    //Serial.println(ProgBarVal);
-    ProgBarLevel.setValue(ProgBarVal); 
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
     // into a 512 byte buffer.  The Arduino SD library
@@ -185,6 +210,7 @@ void stopRecording() {
     frec.close();
   }
   mode = 0;
+  checkLvl = false;
 }
 
 void startPlaying() {
@@ -204,6 +230,11 @@ void stopPlaying() {
   Serial.println("stopPlaying");
   if (mode == 2) playRaw1.stop();
   mode = 0;
+}
+
+void displayLvl() {
+  uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
+  ProgBarLevel.setValue(ProgBarVal); 
 }
 
 // CALLBACKS
@@ -230,4 +261,16 @@ void PlayButtonCallback(void *ptr)
   Serial.println("Play Button Press");
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
+}
+
+void buttonStartCheckLvlCallback(void *ptr)
+{
+  Serial.println("Checking Level");
+  checkLvl = true;
+}
+
+void buttonStopCheckLvlCallback(void *ptr)
+{
+  Serial.println("Stop Checking Level");
+  checkLvl = false;
 }
