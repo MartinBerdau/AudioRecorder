@@ -1,4 +1,4 @@
-// Version von Martin (für eigenen Branch)
+// Version von Martin und Tammo (für eigenen Branch)
 // Erfordert als zusätzliche Library RMSLevel (von mir)
 //
 // Editiertes Beispiel-File.
@@ -13,8 +13,10 @@
 //
 // Requires the audio shield:
 //   http://www.pjrc.com/store/teensy3_audio.html
+// For Saving stuff the listfiles eample was used
 //
 // This example code is in the public domain.
+
 
 #include <Bounce.h>
 #include <Audio.h>
@@ -32,12 +34,12 @@ AudioAnalyzePeak         peak1;          //xy=278,108
 // AUDIO ANALYZE RMS HINZUFUEGEN
 AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
-AudioPlaySdRaw           playRaw1;       //xy=302,157
+AudioPlaySdWav           playWav1;       //xy=302,157
 AudioOutputI2S           i2s1;           //xy=470,120
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, peak1, 0);
-AudioConnection          patchCord3(playRaw1, 0, i2s1, 0);
-AudioConnection          patchCord4(playRaw1, 0, i2s1, 1);
+AudioConnection          patchCord3(playWav1, 0, i2s1, 0);
+AudioConnection          patchCord4(playWav1, 0, i2s1, 1);
 AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
 AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
 AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
@@ -49,6 +51,7 @@ IntervalTimer            TimerRec;
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
+NexButton buttonSave = NexButton(0,9,"Save");
 //NexButton buttonInput = NexButton(0,12,"Input");
 
 /* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
@@ -71,6 +74,7 @@ NexButton buttonPlay = NexButton(0,1,"Play");
 NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 NexText textTimer = NexText(0,7,"Timer");
+NexText textFile = NexText(0,8,"FileName");
 
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
@@ -78,6 +82,7 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
+  &buttonSave,
 //  &uttonInput,
   &sliderGain,
   NULL
@@ -97,6 +102,27 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 
 // The file where data is recorded
 File frec;
+
+//Needed variables for saving stuff
+int fileCount = 1;
+char filename[] = "RECORD01.WAV";
+double usedMemory = 0;
+double SDsize = 0;
+File root;
+
+// Variablen für den Wave-Header
+unsigned long ChunkSize = 0L;
+unsigned long Subchunk1Size = 16;
+unsigned int AudioFormat = 1;         // PCM = unkomprimiert
+unsigned int numChannels = 1;         // 1 = mono, 2 = Stereo
+unsigned long sampleRate = 44100;
+unsigned int bitsPerSample = 16;
+unsigned long byteRate = sampleRate*numChannels*(bitsPerSample/8);// samplerate x channels x (bitspersample / 8)
+unsigned int blockAlign = numChannels*bitsPerSample/8;
+unsigned long Subchunk2Size = 0L;
+unsigned long recByteSaved = 0L;
+unsigned long NumSamples = 0L;
+byte byte1, byte2, byte3, byte4;
 
 // Initialising rms level meter
 // Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
@@ -147,11 +173,19 @@ void setup() {
     }
   }
 
+  root = SD.open("/");
+  checkCurrentFile();
+  double SDsize = root.size();
+  computeUsedMemory(root);
+  Serial.println(SDsize);
+  
+
   // Link Callbacks
   //buttonInput.attachPush(InputButtonCallback);
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
+  buttonSave.attachPush(SaveButtonCallback);
 //  sliderGain.attachPop(sliderGainCallback);
 }
 
@@ -174,6 +208,46 @@ void loop() {
 }
 
 
+void checkCurrentFile()
+{
+  while(fileCount>=0)
+  {
+    if(SD.exists(filename)){
+      fileCount += 1;
+      filename[6] = int(floor(fileCount/10))+'0';
+      filename[7] = int(fileCount%10)+'0';
+    }
+    else{
+      break;
+    }
+  }   
+}
+
+void saveCurrentFile(){
+  fileCount +=1;
+  filename[6] = int(floor(fileCount/10))+'0';
+  filename[7] = int(fileCount%10)+'0';
+  usedMemory += frec.size();
+  updateMemoryDisp();
+}
+
+void computeUsedMemory(File dir){
+  while(true){
+    File entry = dir.openNextFile();
+    usedMemory += entry.size();
+    if(!entry){
+      break;
+    }
+    entry.close();
+  }
+  updateMemoryDisp();
+}
+
+void updateMemoryDisp(){
+  double availibleMemory_byte = (SDsize-usedMemory)*1000;
+  textFile.setText(filename);  
+}
+
 void changeInput(){
 if (inputMode == 1){
   myInput = AUDIO_INPUT_LINEIN;
@@ -188,16 +262,17 @@ if (inputMode == 2) {
 void startRecording() {
   Serial.println("startRecording");
   TimerRec.begin(TimerUpdate,1000000);
-  if (SD.exists("RECORD.RAW")) {
+    if (SD.exists(filename)) {
     // The SD library writes new data to the end of the
     // file, so to start a new recording, the old file
     // must be deleted before new data is written.
-    SD.remove("RECORD.RAW");
+    SD.remove(filename);
   }
-  frec = SD.open("RECORD.RAW", FILE_WRITE);
+  frec = SD.open(filename, FILE_WRITE);
   if (frec) {
     queue1.begin();
     mode = 1;
+    recByteSaved = 0L;
   }
 }
 
@@ -232,6 +307,7 @@ void continueRecording() {
     // the average write time is under 5802 us.
     //Serial.print("SD write, us=");
     //Serial.println(usec);
+    recByteSaved += 512;                                // Addiert in jedem Durchlauf 512 Bytes   
   }
 }
 
@@ -244,7 +320,9 @@ void stopRecording() {
     while (queue1.available() > 0) {
       frec.write((byte*)queue1.readBuffer(), 256);
       queue1.freeBuffer();
+      recByteSaved += 256;                                        // Addiert die letzten 256 Bytes bei Aufnahme-Stopp
     }
+    writeWaveHeader();                                            // Schreibt den Wave-Header auf die SD-Karte
     frec.close();
   }
   mode = 0;
@@ -253,26 +331,88 @@ void stopRecording() {
 
 void startPlaying() {
   Serial.println("startPlaying");
-  playRaw1.play("RECORD.RAW");
+  playWav1.play(filename);
   mode = 2;
 }
 
 void continuePlaying() {
-  if (!playRaw1.isPlaying()) {
-    playRaw1.stop();
+  if (!playWav1.isPlaying()) {
+    playWav1.stop();
     mode = 0;
   }
 }
 
 void stopPlaying() {
   Serial.println("stopPlaying");
-  if (mode == 2) playRaw1.stop();
+  if (mode == 2) playWav1.stop();
   mode = 0;
 }
 
 void adjustMicLevel() {
   // TODO: read the peak1 object and adjust sgtl5000_1.micGain()
   // if anyone gets this working, please submit a github pull request :-)
+}
+
+void writeWaveHeader() { // update WAV header with final filesize/datasize
+  // Quelle: https://gist.github.com/JarvusChen/fb641cad18eca4988a9e83a9ce65f42f
+
+//  NumSamples = (recByteSaved*8)/bitsPerSample/numChannels;
+//  Subchunk2Size = NumSamples*numChannels*bitsPerSample/8; // number of samples x number of channels x number of bytes per sample
+
+  Subchunk2Size = recByteSaved;
+  ChunkSize = Subchunk2Size + 36;   // Gesamte File-Länge 
+  frec.seek(0);
+  frec.write("RIFF");
+  byte1 = ChunkSize & 0xff;
+  byte2 = (ChunkSize >> 8) & 0xff;
+  byte3 = (ChunkSize >> 16) & 0xff;
+  byte4 = (ChunkSize >> 24) & 0xff;  
+  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
+  frec.write("WAVE");
+  // Ende des RIFF-Headers
+
+  // Start des Format-Abschnitts  
+  frec.write("fmt ");
+  byte1 = Subchunk1Size & 0xff;
+  byte2 = (Subchunk1Size >> 8) & 0xff;
+  byte3 = (Subchunk1Size >> 16) & 0xff;
+  byte4 = (Subchunk1Size >> 24) & 0xff;  
+  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
+  byte1 = AudioFormat & 0xff;
+  byte2 = (AudioFormat >> 8) & 0xff;
+  frec.write(byte1);  frec.write(byte2); 
+  byte1 = numChannels & 0xff;
+  byte2 = (numChannels >> 8) & 0xff;
+  frec.write(byte1);  frec.write(byte2); 
+  byte1 = sampleRate & 0xff;
+  byte2 = (sampleRate >> 8) & 0xff;
+  byte3 = (sampleRate >> 16) & 0xff;
+  byte4 = (sampleRate >> 24) & 0xff;  
+  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
+  byte1 = byteRate & 0xff;
+  byte2 = (byteRate >> 8) & 0xff;
+  byte3 = (byteRate >> 16) & 0xff;
+  byte4 = (byteRate >> 24) & 0xff;  
+  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
+  byte1 = blockAlign & 0xff;
+  byte2 = (blockAlign >> 8) & 0xff;
+  frec.write(byte1);  frec.write(byte2); 
+  byte1 = bitsPerSample & 0xff;
+  byte2 = (bitsPerSample >> 8) & 0xff;
+  frec.write(byte1);  frec.write(byte2); 
+  // Ende des Format-Abschnitts
+
+  // Anfang des Daten-Abschnitts
+  frec.write("data");
+  byte1 = Subchunk2Size & 0xff;
+  byte2 = (Subchunk2Size >> 8) & 0xff;
+  byte3 = (Subchunk2Size >> 16) & 0xff;
+  byte4 = (Subchunk2Size >> 24) & 0xff;  
+  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
+  frec.close();
+  Serial.println("header written"); 
+  //Serial.print("Subchunk2: "); 
+  //Serial.println(Subchunk2Size); 
 }
 
 void TimerUpdate(){
@@ -312,8 +452,7 @@ void RecordButtonCallback(void *ptr)
   if (mode == 0) 
   {
     startRecording();
-  }
-  
+  }  
 }
 
 void StopButtonCallback(void *ptr)
@@ -328,6 +467,12 @@ void PlayButtonCallback(void *ptr)
   Serial.println("Play Button Press");
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
+}
+
+void SaveButtonCallback(void *)
+{
+  Serial.println("Save Button Press");
+  saveCurrentFile();
 }
 
 //void InputButtonCallback(void *ptr)
