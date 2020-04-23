@@ -3,14 +3,12 @@
 // Was ist neu:
 // Das Pegelmeter wird jetzt immer durch die Funktion
 // displayLvl() im Loop aufgerufen wenn der Boolean
-// checkLvl true ist. Das geschieht durch Drücken von
+// checkLvl true ist. Das geschieht durch Drücken des
 // Buttons oder beim Aufruf bestimmter Funktionen
 // (startRecording -> true, stopRecording -> false)
 //
 // Was muss gemacht werden:
-// Ein Button, um checkLvl auf true zu setzen und ein Button,
-// welcher diesen nach dem Drücken ersetzt und beim Drücken
-// checkLvl auf false setzt.
+// Ein Button, um checkLvl auf true oder false zu setzen.
 //
 // Erfordert als zusätzliche Library RMSLevel (von mir)
 //
@@ -59,13 +57,7 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
-
-// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
-// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
-// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
-// HIER EINFUEGEN UND DIESEN KOMMENTAR LÖSCHEN!!!
-NexButton buttonStartCheckLvl = NexButton(0,4,"StartLvl");
-NexButton buttonStopCheckLvl = NexButton(0,5,"StopLvl");
+NexButton buttonCheckLvl = NexButton(0,12,"CheckLvl");
 //NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 
@@ -75,8 +67,7 @@ NexTouch *nex_listen_list[] =
   &buttonRecord,
   &buttonStop,
   &buttonPlay,
-  &buttonStartCheckLvl,
-  &buttonStopCheckLvl,
+  &buttonCheckLvl,
 //  &sliderGain,
   NULL
 };
@@ -143,8 +134,7 @@ void setup() {
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
-  buttonPlay.attachPush(buttonStartCheckLvlCallback);
-  buttonPlay.attachPush(buttonStopCheckLvlCallback);
+  buttonCheckLvl.attachPush(buttonCheckLvlCallback);
 //  sliderGain.attachPop(sliderGainCallback);
 }
 
@@ -263,14 +253,17 @@ void PlayButtonCallback(void *ptr)
   if (mode == 0) startPlaying();
 }
 
-void buttonStartCheckLvlCallback(void *ptr)
+void buttonCheckLvlCallback(void *ptr)
 {
-  Serial.println("Checking Level");
-  checkLvl = true;
-}
-
-void buttonStopCheckLvlCallback(void *ptr)
-{
-  Serial.println("Stop Checking Level");
-  checkLvl = false;
+  if (!checkLvl)
+  {
+    Serial.println("Checking Level");
+    checkLvl = true;
+  }
+  if (checkLvl)
+  {
+    Serial.println("Stop Checking Level");
+    checkLvl = false;
+  }
+  
 }
