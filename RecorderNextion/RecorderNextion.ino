@@ -26,6 +26,7 @@
 #include <SerialFlash.h>
 #include <Nextion.h>
 #include <RMSLevel.h>
+#include <Wavefile.h>
 #include <string>
 
 // GUItool: begin automatically generated code
@@ -44,7 +45,8 @@ AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
 AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
 AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
-IntervalTimer            TimerRec;
+elapsedMillis            TimerRec;
+elapsedMillis            TimerLvl;
 // GUItool: end automatically generated code
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
@@ -52,6 +54,7 @@ NexButton buttonRecord = NexButton(0,3,"Record");
 NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
 NexButton buttonSave = NexButton(0,9,"Save");
+NexButton buttonCheckLvl = NexButton(0,12,"CheckLvl");
 //NexButton buttonInput = NexButton(0,12,"Input");
 
 /* ES MUSS EIN NEUER SLIDER ERSTELLT WERDEN (PAGE UND ID
@@ -83,6 +86,7 @@ NexTouch *nex_listen_list[] =
   &buttonStop,
   &buttonPlay,
   &buttonSave,
+  &buttonCheckLvl,
 //  &uttonInput,
   &sliderGain,
   NULL
@@ -110,6 +114,7 @@ double usedMemory = 0;
 double SDsize = 0;
 File root;
 
+Wavefile wavefile;
 // Variablen für den Wave-Header
 unsigned long ChunkSize = 0L;
 unsigned long Subchunk1Size = 16;
@@ -124,12 +129,14 @@ unsigned long recByteSaved = 0L;
 unsigned long NumSamples = 0L;
 byte byte1, byte2, byte3, byte4;
 
+
 // Initialising rms level meter
 // Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
 double tau = 0.125;
-double fs = 44100/512; //divided by block length, because
-// rmsMeter calculates level from 512 samples
-RMSLevel rmsMeter(tau,fs);
+double f_refresh = 10;
+RMSLevel rmsMeter(tau,f_refresh);
+bool checkLvl = false;
+int DispDelay = 1000000/f_refresh;
 
 uint32_t sliderValue = 50;
 
@@ -138,7 +145,6 @@ int counterSec = 0;
 int counterMin = 0;
 int counterHr = 0;
 char TimerVal[] = "00:00:00";
-
 
 
 void setup() {
@@ -186,23 +192,35 @@ void setup() {
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
   buttonSave.attachPush(SaveButtonCallback);
+  buttonCheckLvl.attachPush(buttonCheckLvlCallback);
 //  sliderGain.attachPop(sliderGainCallback);
+
+//TimerDisp.begin(displayRefresh,DispDelay);
 }
 
 
 void loop() {
-
   // Respond to button presses
   nexLoop(nex_listen_list);
 
   // If we're playing or recording, carry on...
   if (mode == 1) {
     continueRecording();
+    if (TimerRec >= 1000)
+    {
+      TimerUpdate();
+      TimerRec-=1000;
+    }
   }
   if (mode == 2) {
     continuePlaying();
   }
-
+  if (checkLvl){
+    if(TimerLvl >=250){
+      displayLvl();
+      TimerLvl-=250;
+    }
+  }
   // when using a microphone, continuously adjust gain
   if (myInput == AUDIO_INPUT_MIC) adjustMicLevel();
 }
@@ -222,8 +240,12 @@ void checkCurrentFile()
     }
   }   
 }
+void testsave(){
+  wavefile.generateHeader(frec,filename,recByteSaved);
+}
 
 void saveCurrentFile(){
+  testsave();                                          // Schreibt den Wave-Header auf die SD-Karte
   fileCount +=1;
   filename[6] = int(floor(fileCount/10))+'0';
   filename[7] = int(fileCount%10)+'0';
@@ -261,7 +283,6 @@ if (inputMode == 2) {
 
 void startRecording() {
   Serial.println("startRecording");
-  TimerRec.begin(TimerUpdate,1000000);
     if (SD.exists(filename)) {
     // The SD library writes new data to the end of the
     // file, so to start a new recording, the old file
@@ -272,17 +293,13 @@ void startRecording() {
   if (frec) {
     queue1.begin();
     mode = 1;
+    checkLvl = true;
     recByteSaved = 0L;
   }
 }
 
 void continueRecording() {
   if (queue1.available() >= 2) {
-
-    //Serial.println(rmsMeter.updateRMS(double(rms_mono.read())));
-    uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
-    //Serial.println(ProgBarVal);
-    ProgBarLevel.setValue(ProgBarVal); 
     byte buffer[512];
     // Fetch 2 blocks from the audio library and copy
     // into a 512 byte buffer.  The Arduino SD library
@@ -313,7 +330,6 @@ void continueRecording() {
 
 void stopRecording() {
   Serial.println("stopRecording");
-  TimerRec.end();
   resetTimer();
   queue1.end();
   if (mode == 1) {
@@ -322,8 +338,6 @@ void stopRecording() {
       queue1.freeBuffer();
       recByteSaved += 256;                                        // Addiert die letzten 256 Bytes bei Aufnahme-Stopp
     }
-    writeWaveHeader();                                            // Schreibt den Wave-Header auf die SD-Karte
-    frec.close();
   }
   mode = 0;
 }
@@ -444,13 +458,26 @@ void resetTimer(){
   counterHr = 0;
 }
 
+void displayRefresh(){
+  if (checkLvl){
+    displayLvl();
+  }
+}
+
+void displayLvl() {
+  uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
+  ProgBarLevel.setValue(ProgBarVal); 
+}
+
 // PUSH CALLBACKS
 void RecordButtonCallback(void *ptr)
 {;
-  Serial7.print("Record");
+  Serial.print("Record");
   if (mode == 2) stopPlaying();
   if (mode == 0) 
   {
+    TimerLvl=0;
+    TimerRec=0;
     startRecording();
   }  
 }
@@ -460,6 +487,7 @@ void StopButtonCallback(void *ptr)
   Serial.println("Stop Button Press");
   if (mode == 1) stopRecording();
   if (mode == 2) stopPlaying();
+  checkLvl = false;
 }
 
 void PlayButtonCallback(void *ptr)
@@ -492,6 +520,22 @@ void SaveButtonCallback(void *)
 //  }
 //  sgtl5000_1.inputSelect(myInput);
 //}
+
+void buttonCheckLvlCallback(void *ptr)
+{
+  if (!checkLvl)
+  {
+    Serial.println("Checking Level");
+    TimerLvl = 0;
+    checkLvl = true;
+  }
+  else
+  {
+    Serial.println("Stop Checking Level");
+    checkLvl = false;
+  }
+  
+}
 
 void sliderGainCallback(void *ptr)
 {
