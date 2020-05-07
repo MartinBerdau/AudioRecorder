@@ -43,8 +43,8 @@ AudioConnection          patchCord2(AudioInput, 0, peak1, 0);
 AudioConnection          patchCord3(AudioInput, 0, rms_mono, 0);
 AudioConnection          patchCord4(playSdWav1, 0, mixer1, 0);
 AudioConnection          patchCord5(playSdWav1, 1, mixer1, 1);
-AudioConnection          patchCord6(playSdWav1, 0, mixer1, 2);
-AudioConnection          patchCord7(playSdWav1, 1, mixer1, 3);
+AudioConnection          patchCord6(AudioInput, 0, mixer1, 2);
+AudioConnection          patchCord7(AudioInput, 1, mixer1, 3);
 AudioConnection          patchCord8(mixer1, 0, AudioOutput, 0);
 AudioConnection          patchCord9(mixer1, 0, AudioOutput, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
