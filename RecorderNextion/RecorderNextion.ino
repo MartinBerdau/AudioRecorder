@@ -26,24 +26,27 @@
 #include <SerialFlash.h>
 #include <Nextion.h>
 #include <RMSLevel.h>
-#include <Wavefile.h>
+#include <WaveHeader.h>
 #include <string>
 
 // GUItool: begin automatically generated code
-AudioInputI2S            i2s2 ;           //xy=105,63
+AudioInputI2S            AudioInput;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
 // AUDIO ANALYZE RMS HINZUFUEGEN
 AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
-AudioPlaySdWav           playWav1;       //xy=302,157
-AudioOutputI2S           i2s1;           //xy=470,120
-AudioConnection          patchCord1(i2s2, 0, queue1, 0);
-AudioConnection          patchCord2(i2s2, 0, peak1, 0);
-AudioConnection          patchCord3(playWav1, 0, i2s1, 0);
-AudioConnection          patchCord4(playWav1, 0, i2s1, 1);
-AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
-AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
-AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
+AudioPlaySdWav           playSdWav1;       //xy=302,157
+AudioOutputI2S           AudioOutput;           //xy=470,120
+AudioMixer4              mixer1;
+AudioConnection          patchCord1(AudioInput, 0, queue1, 0);
+AudioConnection          patchCord2(AudioInput, 0, peak1, 0);
+AudioConnection          patchCord3(AudioInput, 0, rms_mono, 0);
+AudioConnection          patchCord4(playSdWav1, 0, mixer1, 0);
+AudioConnection          patchCord5(playSdWav1, 1, mixer1, 1);
+AudioConnection          patchCord6(playSdWav1, 0, mixer1, 2);
+AudioConnection          patchCord7(playSdWav1, 1, mixer1, 3);
+AudioConnection          patchCord8(mixer1, 0, AudioOutput, 0);
+AudioConnection          patchCord9(mixer1, 0, AudioOutput, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 elapsedMillis            TimerRec;
 elapsedMillis            TimerLvl;
@@ -79,6 +82,17 @@ NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 NexText textTimer = NexText(0,7,"Timer");
 NexText textFile = NexText(0,8,"FileName");
 
+//Buttons und Textfeld fuer FileBrowser
+NexText textWavFile = NexText(2,1,"WavFile");
+NexButton buttonLoad = NexButton(2,4,"WavLoad");
+NexButton buttonPlayWav = NexButton(2,2,"PlayWav");
+NexButton buttonStopWav = NexButton(2,3,"WavStop");
+NexButton buttonWavUp = NexButton(2,5,"WavUp");
+NexButton buttonWavDown = NexButton(2,6,"WavDown");
+
+//MenuButtons
+
+
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
 {
@@ -87,6 +101,11 @@ NexTouch *nex_listen_list[] =
   &buttonPlay,
   &buttonSave,
   &buttonCheckLvl,
+  &buttonLoad,
+  &buttonPlayWav,
+  &buttonStopWav,
+  &buttonWavUp,
+  &buttonWavDown,
 //  &uttonInput,
   &sliderGain,
   NULL
@@ -106,29 +125,22 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 
 // The file where data is recorded
 File frec;
+WaveHeader waveheader;
 
 //Needed variables for saving stuff
-int fileCount = 1;
+int fileCount = 0;
 char filename[] = "RECORD01.WAV";
-double usedMemory = 0;
+uint32_t availibleMemory_byte = 0;
+uint32_t usedMemory = 0;
 double SDsize = 0;
+Sd2Card card;
+SdVolume volume;
 File root;
+uint32_t volumesize = 0;
+uint32_t SDSize = 0;
 
-Wavefile wavefile;
 // Variablen für den Wave-Header
-unsigned long ChunkSize = 0L;
-unsigned long Subchunk1Size = 16;
-unsigned int AudioFormat = 1;         // PCM = unkomprimiert
-unsigned int numChannels = 1;         // 1 = mono, 2 = Stereo
-unsigned long sampleRate = 44100;
-unsigned int bitsPerSample = 16;
-unsigned long byteRate = sampleRate*numChannels*(bitsPerSample/8);// samplerate x channels x (bitspersample / 8)
-unsigned int blockAlign = numChannels*bitsPerSample/8;
-unsigned long Subchunk2Size = 0L;
 unsigned long recByteSaved = 0L;
-unsigned long NumSamples = 0L;
-byte byte1, byte2, byte3, byte4;
-
 
 // Initialising rms level meter
 // Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
@@ -145,6 +157,10 @@ int counterSec = 0;
 int counterMin = 0;
 int counterHr = 0;
 char TimerVal[] = "00:00:00";
+
+//Variables fuer FileBrowser
+char CurWav[] = "RECORD01.WAV";
+int WavCount = 0;
 
 
 void setup() {
@@ -179,11 +195,27 @@ void setup() {
     }
   }
 
+  card.init(SPI_HALF_SPEED, SDCARD_CS_PIN);
+
+  // Now we will try to open the 'volume'/'partition' - it should be FAT16 or FAT32
+  volume.init(card);
+  
+  SDSize = volume.blocksPerCluster();    // clusters are collections of blocks
+  SDSize *= volume.clusterCount();       // we'll have a lot of clusters
+  volumesize = SDSize;
+  SDSize *= 512;
+  Serial.print("Volume size (Bytes): ");
+  Serial.println(SDSize);
+  Serial.print("Volume size (Kbytes): ");
+  volumesize /= 2;
+  Serial.println(volumesize);
+  Serial.print("Volume size (Mbytes): ");
+  volumesize /= 1024;
+  Serial.println(volumesize);
   root = SD.open("/");
-  checkCurrentFile();
-  double SDsize = root.size();
   computeUsedMemory(root);
-  Serial.println(SDsize);
+  checkCurrentFile();
+  
   
 
   // Link Callbacks
@@ -193,6 +225,11 @@ void setup() {
   buttonPlay.attachPush(PlayButtonCallback);
   buttonSave.attachPush(SaveButtonCallback);
   buttonCheckLvl.attachPush(buttonCheckLvlCallback);
+  buttonLoad.attachPush(buttonLoadCallback);
+  buttonPlayWav.attachPush(buttonPlayWavCallback);
+  buttonStopWav.attachPush(buttonStopWavCallback);
+  buttonWavUp.attachPush(buttonWavUpCallback);
+  buttonWavDown.attachPush(buttonWavDownCallback);
 //  sliderGain.attachPop(sliderGainCallback);
 
 //TimerDisp.begin(displayRefresh,DispDelay);
@@ -240,16 +277,13 @@ void checkCurrentFile()
     }
   }   
 }
-void testsave(){
-  wavefile.generateHeader(frec,filename,recByteSaved);
-}
 
 void saveCurrentFile(){
-  testsave();                                          // Schreibt den Wave-Header auf die SD-Karte
+  waveheader.writeWaveHeader(recByteSaved, frec);                 // Schreibt den Wave-Header auf die SD-Karte
   fileCount +=1;
   filename[6] = int(floor(fileCount/10))+'0';
   filename[7] = int(fileCount%10)+'0';
-  usedMemory += frec.size();
+  usedMemory += recByteSaved+36;
   updateMemoryDisp();
 }
 
@@ -266,7 +300,7 @@ void computeUsedMemory(File dir){
 }
 
 void updateMemoryDisp(){
-  double availibleMemory_byte = (SDsize-usedMemory)*1000;
+  availibleMemory_byte = SDSize-usedMemory;
   textFile.setText(filename);  
 }
 
@@ -345,88 +379,26 @@ void stopRecording() {
 
 void startPlaying() {
   Serial.println("startPlaying");
-  playWav1.play(filename);
+  playSdWav1.play(filename);
   mode = 2;
 }
 
 void continuePlaying() {
-  if (!playWav1.isPlaying()) {
-    playWav1.stop();
+  if (!playSdWav1.isPlaying()) {
+    playSdWav1.stop();
     mode = 0;
   }
 }
 
 void stopPlaying() {
   Serial.println("stopPlaying");
-  if (mode == 2) playWav1.stop();
+  if (mode == 2) playSdWav1.stop();
   mode = 0;
 }
 
 void adjustMicLevel() {
   // TODO: read the peak1 object and adjust sgtl5000_1.micGain()
   // if anyone gets this working, please submit a github pull request :-)
-}
-
-void writeWaveHeader() { // update WAV header with final filesize/datasize
-  // Quelle: https://gist.github.com/JarvusChen/fb641cad18eca4988a9e83a9ce65f42f
-
-//  NumSamples = (recByteSaved*8)/bitsPerSample/numChannels;
-//  Subchunk2Size = NumSamples*numChannels*bitsPerSample/8; // number of samples x number of channels x number of bytes per sample
-
-  Subchunk2Size = recByteSaved;
-  ChunkSize = Subchunk2Size + 36;   // Gesamte File-Länge 
-  frec.seek(0);
-  frec.write("RIFF");
-  byte1 = ChunkSize & 0xff;
-  byte2 = (ChunkSize >> 8) & 0xff;
-  byte3 = (ChunkSize >> 16) & 0xff;
-  byte4 = (ChunkSize >> 24) & 0xff;  
-  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
-  frec.write("WAVE");
-  // Ende des RIFF-Headers
-
-  // Start des Format-Abschnitts  
-  frec.write("fmt ");
-  byte1 = Subchunk1Size & 0xff;
-  byte2 = (Subchunk1Size >> 8) & 0xff;
-  byte3 = (Subchunk1Size >> 16) & 0xff;
-  byte4 = (Subchunk1Size >> 24) & 0xff;  
-  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
-  byte1 = AudioFormat & 0xff;
-  byte2 = (AudioFormat >> 8) & 0xff;
-  frec.write(byte1);  frec.write(byte2); 
-  byte1 = numChannels & 0xff;
-  byte2 = (numChannels >> 8) & 0xff;
-  frec.write(byte1);  frec.write(byte2); 
-  byte1 = sampleRate & 0xff;
-  byte2 = (sampleRate >> 8) & 0xff;
-  byte3 = (sampleRate >> 16) & 0xff;
-  byte4 = (sampleRate >> 24) & 0xff;  
-  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
-  byte1 = byteRate & 0xff;
-  byte2 = (byteRate >> 8) & 0xff;
-  byte3 = (byteRate >> 16) & 0xff;
-  byte4 = (byteRate >> 24) & 0xff;  
-  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
-  byte1 = blockAlign & 0xff;
-  byte2 = (blockAlign >> 8) & 0xff;
-  frec.write(byte1);  frec.write(byte2); 
-  byte1 = bitsPerSample & 0xff;
-  byte2 = (bitsPerSample >> 8) & 0xff;
-  frec.write(byte1);  frec.write(byte2); 
-  // Ende des Format-Abschnitts
-
-  // Anfang des Daten-Abschnitts
-  frec.write("data");
-  byte1 = Subchunk2Size & 0xff;
-  byte2 = (Subchunk2Size >> 8) & 0xff;
-  byte3 = (Subchunk2Size >> 16) & 0xff;
-  byte4 = (Subchunk2Size >> 24) & 0xff;  
-  frec.write(byte1);  frec.write(byte2);  frec.write(byte3);  frec.write(byte4);
-  frec.close();
-  Serial.println("header written"); 
-  //Serial.print("Subchunk2: "); 
-  //Serial.println(Subchunk2Size); 
 }
 
 void TimerUpdate(){
@@ -467,6 +439,19 @@ void displayRefresh(){
 void displayLvl() {
   uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
   ProgBarLevel.setValue(ProgBarVal); 
+}
+
+void playFile(const char *filename)
+{
+  Serial.print("Playing file: ");
+  Serial.println(filename);
+
+  // Start playing the file.  This sketch continues to
+  // run while the file plays.
+  playSdWav1.play(filename);
+
+  // A brief delay for the library read WAV info
+  delay(5);
 }
 
 // PUSH CALLBACKS
@@ -540,4 +525,71 @@ void buttonCheckLvlCallback(void *ptr)
 void sliderGainCallback(void *ptr)
 {
   sgtl5000_1.micGain(sliderGain.getValue(&sliderValue));
+}
+
+//Callbacks fuer FileBrowser
+void buttonLoadCallback(void *ptr)
+{
+  textWavFile.getText(CurWav, 13);
+  Serial.println(CurWav);
+}
+
+void buttonPlayWavCallback(void *ptr)
+{
+  playFile(CurWav);
+  Serial.println(CurWav);
+}
+
+void buttonStopWavCallback(void *ptr)
+{
+  playSdWav1.stop();
+}
+
+void buttonWavUpCallback(void *ptr)
+{
+  if (WavCount <= fileCount)
+  {
+    textWavFile.getText(CurWav, 12);
+    int Wav1 = int(CurWav[6]-'0');
+    int Wav2 = int(CurWav[7]-'0');
+    Wav2 += 1;
+    if (Wav2 >= 10)
+    {
+      Wav1 += 1;
+      Wav2 = 0;
+    }
+    CurWav[6] = char(Wav1 + '0');
+    CurWav[7] = char(Wav2 + '0');
+    WavCount++;
+    textWavFile.setText(CurWav);
+  }
+}
+
+
+void buttonWavDownCallback(void *ptr)
+{
+  textWavFile.getText(CurWav, 13);
+  int Wav1 = int(CurWav[6]-'0');
+  int Wav2 = int(CurWav[7]-'0');
+  if (Wav1 >= 0 && Wav2 >= 0)
+  {
+    if (Wav1 == 0 && Wav2 == 1)
+    {
+      Wav1 = 0;
+      Wav2 = 1;
+    }
+    else
+    {
+    Wav2 -= 1;
+    if (Wav2 < 0)
+   {
+      Wav1 -= 1;
+      Wav2 = 9;
+   }
+    }
+    CurWav[6] = char(Wav1 + '0');
+    CurWav[7] = char(Wav2 + '0');
+  }
+  WavCount--;
+  textWavFile.setText(CurWav);
 }
