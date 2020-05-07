@@ -4,6 +4,7 @@
 - Teensy 4.0
 - Teensy Audio Shield
 - Nextion Basic Series
+- 2 SD-Karten (1x für Nextion-Display, 1x für Teensy [FAT32, SDHC-Karte])
 
 ## MyLibrary installieren:
 MyLibrary muss in Teensyduino unter "Sketch/Bibliothek einbinden/.ZIP-Bibliothek hinzufügen..." ausgewählt werden.
@@ -14,6 +15,10 @@ Link zum Runterladen:
 https://github.com/itead/ITEADLIB_Arduino_Nextion
 
 Je nachdem, wie die Komponenten verlötet wurden, muss in der Nextion-Library in NexConfig.h in Zeile 37 der zu verwendende Serial eingetragen werden (z.B. #define nexSerial Serial1, keinen Serial wählen, der bereits verwendet wird!).
+
+## Ausführung:
+Der Code für das Nextion-Display muss in dem Nextion-Editor in ein tft-File umgewandelt werden, welches im Anschluss auf die SD-Karte kopiert wird, welche für das Nextion verwendet wird.
+Der ino-Code muss auf den Teensy geladen werden. Das Display muss vor dem Teensy angeschaltet werden, ansonsten Funktioniert die Kommunikation möglicherweise nicht
 
 ## Eingebaute Features:
 - Pegelanzeige
