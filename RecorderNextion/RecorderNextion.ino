@@ -1,4 +1,4 @@
-// Master-Version
+// Master-Version branchHannes
 // Dieses File enthält bislang nur die Grundfunktionen.
 // Sobald ein weiteres Feature effizient genug ausgearbeitet worden ist (idealerweise outsourcen in andere Files),
 // kann es hier eingebaut werden. Am besten sollten aber alle davon wissen, was hier eingebaut wird, also
@@ -62,6 +62,9 @@ NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 NexButton buttonCheckLvl = NexButton(0,12,"CheckLvl");
+NexButton buttonAGC = NexButton(0, 18, "AGC");
+NexSlider sliderVolume = NexSlider(0, 15, "Volume");
+NexSlider sliderGain = NexSlider(0, 11, "Gain");
 
 NexTouch *nex_listen_list[] =
 {
@@ -69,6 +72,9 @@ NexTouch *nex_listen_list[] =
   &buttonStop,
   &buttonPlay,
   &buttonCheckLvl,
+  &buttonAGC,
+  &sliderVolume,
+  &sliderGain,
   NULL
 };
 
@@ -92,17 +98,22 @@ bool checkLvl = false;
 int dispDelay = 1000/f_refresh;
 
 //-----------------------------------------------------------------------------------------
+// Automatic Gain Control
+//-----------------------------------------------------------------------------------------
+int AGCMode = 1;
+
+//-----------------------------------------------------------------------------------------
 // SETUP
 //-----------------------------------------------------------------------------------------
 void setup() {
 
   nexInit();
-  Serial7.print("baud=115200");
-  Serial7.write(0xff);
-  Serial7.write(0xff);
-  Serial7.write(0xff);
-  Serial7.end();
-  Serial7.begin(115200);
+  Serial4.print("baud=115200");
+  Serial4.write(0xff);
+  Serial4.write(0xff);
+  Serial4.write(0xff);
+  Serial4.end();
+  Serial4.begin(115200);
   
   AudioMemory(256);
 
@@ -125,6 +136,9 @@ void setup() {
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
   buttonCheckLvl.attachPush(buttonCheckLvlCallback);
+  buttonAGC.attachPush(AGCButtonCallback);
+  sliderVolume.attachPop(sliderVolumePopCallback);
+  sliderGain.attachPop(sliderGainPopCallback);
 }
 
 //-----------------------------------------------------------------------------------------
@@ -229,7 +243,7 @@ void RecordButtonCallback(void *ptr)
   Serial.print("Record");
   if (mode == 1) {
     stopRecording();
-    break;
+    //break;
   }
   if (mode == 0) 
   {
@@ -266,5 +280,48 @@ void buttonCheckLvlCallback(void *ptr)
     Serial.println("Stop Checking Level");
     checkLvl = false;
   }
+}  
+
+void sliderVolumePopCallback(void *ptr)
+{
+  uint32_t slideValue = 0;
+  sliderVolume.getValue(&slideValue);
+  double volumeValue = slideValue /100.0;
+  sgtl5000_1.volume(volumeValue);
+  Serial.print("n1.val=");  
+  Serial.print(slideValue); 
+  Serial.write(0xff);  
+  Serial.write(0xff);
+  Serial.write(0xff);
   
+}
+
+void sliderGainPopCallback(void *ptr)
+{
+  uint32_t slideGainValue = 0;
+  sliderGain.getValue(&slideGainValue);
+  double gainValue = slideGainValue; 
+  sgtl5000_1.micGain(gainValue);
+  Serial.print("n1.val=");  
+  Serial.print(gainValue); 
+  Serial.write(0xff);  
+  Serial.write(0xff);
+  Serial.write(0xff);
+  
+}
+
+void AGCButtonCallback(void *ptr)
+{
+  Serial.println("AGC Button Press");
+    if (AGCMode == 1)
+      {
+      AGCMode = 2;                             
+      Serial.println("AGC On");
+      }      
+    else 
+      {
+      AGCMode = 1;
+      Serial.println("AGC Off");                 
+      }  
+          
 }
