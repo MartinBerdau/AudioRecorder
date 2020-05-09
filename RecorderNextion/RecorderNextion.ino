@@ -30,6 +30,7 @@
 // eigene Files
 #include <RMSLevel.h>
 #include <WaveHeader.h>
+#include <RunningTimeLabel.h>
 
 //-----------------------------------------------------------------------------------------
 // AUDIO
@@ -52,7 +53,8 @@ AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 //-----------------------------------------------------------------------------------------
 // TIMING
 //-----------------------------------------------------------------------------------------
-elapsedMillis            TimerLvl;
+elapsedMillis            TimerDisp;
+elapsedMillis            TimePassed;
 
 //-----------------------------------------------------------------------------------------
 //BUTTONS
@@ -62,6 +64,7 @@ NexButton buttonStop = NexButton(0,2,"Stop");
 NexButton buttonPlay = NexButton(0,1,"Play");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 NexButton buttonCheckLvl = NexButton(0,12,"CheckLvl");
+NexText textTimer = NexText(0,7,"Timer");
 
 NexTouch *nex_listen_list[] =
 {
@@ -81,6 +84,12 @@ int myInput = AUDIO_INPUT_LINEIN;
 int mode = 0;  // 0=stopped, 1=recording, 2=playing
 
 File frec;
+
+//-----------------------------------------------------------------------------------------
+// RUNNING TIME LABEL
+//-----------------------------------------------------------------------------------------
+char TimerVal[] = "00:00:00";
+RunningTimeLabel tLabel;
 
 //-----------------------------------------------------------------------------------------
 // WAVE HEADER
@@ -150,11 +159,18 @@ void loop() {
       break;
   }
 
-  if (checkLvl){
-    if(TimerLvl >=dispDelay){
+  if (TimerDisp >=dispDelay){
+    if(checkLvl){
       displayLvl();
-      TimerLvl-=dispDelay;
     }
+    
+    if (mode == 1 /*|| mode == 2*/){
+      tLabel.updateLabel(TimePassed,TimerVal);
+      //Serial.println(TimerVal);
+      textTimer.setText(TimerVal);
+    }
+
+    TimerDisp-=dispDelay;
   }
   
 }
@@ -176,6 +192,7 @@ void startRecording() {
     mode = 1;
     recByteSaved = 0L;
     checkLvl = true;
+    TimePassed = 0;
   }
 }
 
@@ -255,7 +272,7 @@ void RecordButtonCallback(void *ptr)
   switch(mode){
     case 0:
       startRecording();
-      TimerLvl=0;
+      TimerDisp=0;
       break;
     case 1:
       stopRecording();
@@ -303,7 +320,7 @@ void buttonCheckLvlCallback(void *ptr)
   if (!checkLvl)
   {
     Serial.println("Checking Level");
-    TimerLvl = 0;
+    TimerDisp = 0;
     checkLvl = true;
   }
   else
