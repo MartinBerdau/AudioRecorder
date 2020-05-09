@@ -24,6 +24,7 @@ Der ino-Code muss auf den Teensy geladen werden. Das Display muss vor dem Teensy
 ## Eingebaute Features:
 Speicherung:
 - Abspeicherung als wav-Datei
+
 Aufnahme:
 - Pegelanzeige
 - Zeitanzeige
