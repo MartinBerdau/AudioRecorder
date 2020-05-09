@@ -24,5 +24,6 @@ Der ino-Code muss auf den Teensy geladen werden. Das Display muss vor dem Teensy
 ## Eingebaute Features:
 - Aufnahme
 - Pegelanzeige
+- Abspeicherung als wav-Datei
 
 Achtung: in dieser Version kann der Teensy noch keine Aufnahmen wiedergeben!
