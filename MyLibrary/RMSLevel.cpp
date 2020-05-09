@@ -44,7 +44,7 @@ double RMSLevel::updateRMS(double curValue)
 {
     m_data[1] = m_data[0];
     m_data[0] = (1-m_alpha)*curValue + m_alpha*m_data[1];
-    return 20*log10(m_data[1]);
+    return 20*log10(m_data[0]);
     /*
         y(k) - alpha*y(k-1) = (1-alpha)*x(k)
      -> y(k) = (1-alpha)*x(k) + alpha*y(k-1)
