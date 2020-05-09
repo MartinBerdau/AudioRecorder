@@ -29,21 +29,21 @@
 
 // eigene Files
 #include <RMSLevel.h>
+#include <WaveHeader.h>
 
 //-----------------------------------------------------------------------------------------
 // AUDIO
 //-----------------------------------------------------------------------------------------
-AudioInputI2S            i2s2 ;           //xy=105,63
-AudioAnalyzePeak         peak1;          //xy=278,108
-// AUDIO ANALYZE RMS HINZUFUEGEN
+AudioInputI2S            i2s2 ;
+AudioAnalyzePeak         peak1;
 AudioAnalyzeRMS          rms_mono;
-AudioRecordQueue         queue1;         //xy=281,63
-AudioPlaySdRaw           playRaw1;       //xy=302,157
-AudioOutputI2S           i2s1;           //xy=470,120
+AudioRecordQueue         queue1;
+AudioPlaySdWav           playWav1;
+AudioOutputI2S           i2s1;
 AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, peak1, 0);
-AudioConnection          patchCord3(playRaw1, 0, i2s1, 0);
-AudioConnection          patchCord4(playRaw1, 0, i2s1, 1);
+AudioConnection          patchCord3(playWav1, 0, i2s1, 0);
+AudioConnection          patchCord4(playWav1, 0, i2s1, 1);
 AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
 AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
 AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
@@ -83,13 +83,19 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 File frec;
 
 //-----------------------------------------------------------------------------------------
+// WAVE HEADER
+//-----------------------------------------------------------------------------------------
+WaveHeader wavHead;
+unsigned long recByteSaved = 0L;
+
+//-----------------------------------------------------------------------------------------
 // RMS-METER
 //-----------------------------------------------------------------------------------------
 double tau = 0.125;
 double f_refresh = 4;
 RMSLevel rmsMeter(tau,f_refresh);
 bool checkLvl = false;
-int dispDelay = 1000/f_refresh;
+unsigned int dispDelay = 1000/f_refresh;
 
 //-----------------------------------------------------------------------------------------
 // SETUP
@@ -132,19 +138,25 @@ void setup() {
 //-----------------------------------------------------------------------------------------
 void loop() {
   nexLoop(nex_listen_list);
+  
+  switch(mode){
+    case 0:
+      break;
+    case 1:
+      continueRecording();
+      break;
+    case 2:
+      continuePlaying();
+      break;
+  }
 
-  if (mode == 1) {
-    continueRecording();
-  }
-  if (mode == 2) {
-    continuePlaying();
-  }
   if (checkLvl){
     if(TimerLvl >=dispDelay){
       displayLvl();
       TimerLvl-=dispDelay;
     }
   }
+  
 }
 
 //-----------------------------------------------------------------------------------------
@@ -152,16 +164,17 @@ void loop() {
 //-----------------------------------------------------------------------------------------
 void startRecording() {
   Serial.println("startRecording");
-    if (SD.exists("RECORD.RAW")) {
+    if (SD.exists("RECORD.WAV")) {
     // The SD library writes new data to the end of the
     // file, so to start a new recording, the old file
     // must be deleted before new data is written.
-    SD.remove("RECORD.RAW");
+    SD.remove("RECORD.WAV");
   }
-  frec = SD.open("RECORD.RAW", FILE_WRITE);
+  frec = SD.open("RECORD.WAV", FILE_WRITE);
   if (frec) {
     queue1.begin();
     mode = 1;
+    recByteSaved = 0L;
     checkLvl = true;
   }
 }
@@ -173,7 +186,9 @@ void continueRecording() {
     queue1.freeBuffer();
     memcpy(buffer+256, queue1.readBuffer(), 256);
     queue1.freeBuffer();
-    frec.write(buffer, 512);                          // Addiert in jedem Durchlauf 512 Bytes   
+    frec.write(buffer, 512);
+
+    recByteSaved += 512;   
   }
 }
 
@@ -184,7 +199,11 @@ void stopRecording() {
     while (queue1.available() > 0) {
       frec.write((byte*)queue1.readBuffer(), 256);
       queue1.freeBuffer();
+
+      recByteSaved += 256;  
     }
+    wavHead.writeWaveHeader(recByteSaved, frec);
+    //frec.close();
   }
   mode = 0;
   checkLvl = false;
@@ -192,23 +211,29 @@ void stopRecording() {
 
 
 void startPlaying() {
+  /*
   Serial.println("startPlaying");
-  playRaw1.play("RECORD.RAW");
+  playWav1.play("RECORD.WAV");
   mode = 2;
+  */
 }
 
 void continuePlaying() {
-  if (!playRaw1.isPlaying()) {
-    playRaw1.stop();
+  /*
+  if (!playWav1.isPlaying()) {
+    playWav1.stop();
     mode = 0;
   }
+  */
 }
 
 
 void stopPlaying() {
+  /*
   Serial.println("stopPlaying");
-  if (mode == 2) playRaw1.stop();
+  if (mode == 2) playWav1.stop();
   mode = 0;
+  */
 }
 
 //-----------------------------------------------------------------------------------------
@@ -227,22 +252,32 @@ void displayLvl() {
 void RecordButtonCallback(void *ptr)
 {
   Serial.print("Record");
-  if (mode == 1) {
-    stopRecording();
-    break;
+  switch(mode){
+    case 0:
+      startRecording();
+      TimerLvl=0;
+      break;
+    case 1:
+      stopRecording();
+      break;
+    case 2:
+      break;
   }
-  if (mode == 0) 
-  {
-    startRecording();
-    TimerLvl=0;
-  }  
 }
 
 void StopButtonCallback(void *ptr)
 {
   Serial.println("Stop Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 2) stopPlaying();
+  switch(mode){
+    case 0:
+      break;
+    case 1:
+      stopRecording();
+      break;
+    case 2:
+      stopPlaying();
+      break;
+  }
   checkLvl = false;
 }
 
@@ -251,6 +286,16 @@ void PlayButtonCallback(void *ptr)
   Serial.println("Play Button Press");
   if (mode == 1) stopRecording();
   if (mode == 0) startPlaying();
+  switch(mode){
+    case 0:
+      startPlaying();
+      break;
+    case 1:
+      startPlaying();
+      break;
+    case 2:
+      break;
+  }
 }
 
 void buttonCheckLvlCallback(void *ptr)
@@ -268,3 +313,4 @@ void buttonCheckLvlCallback(void *ptr)
   }
   
 }
+//-----------------------------------------------------------------------------------------
