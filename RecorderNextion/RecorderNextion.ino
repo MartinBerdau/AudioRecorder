@@ -166,7 +166,6 @@ void loop() {
     
     if (mode == 1 /*|| mode == 2*/){
       tLabel.updateLabel(TimePassed,TimerVal);
-      //Serial.println(TimerVal);
       textTimer.setText(TimerVal);
     }
 
@@ -301,8 +300,6 @@ void StopButtonCallback(void *ptr)
 void PlayButtonCallback(void *ptr)
 {
   Serial.println("Play Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 0) startPlaying();
   switch(mode){
     case 0:
       startPlaying();
