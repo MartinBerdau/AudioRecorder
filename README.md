@@ -22,8 +22,10 @@ Alternativ kann der Code für das Nextion-Display im Nextion-Editor in ein tft-F
 Der ino-Code muss auf den Teensy geladen werden. Das Display muss vor dem Teensy angeschaltet werden, ansonsten Funktioniert die Kommunikation möglicherweise nicht
 
 ## Eingebaute Features:
-- Aufnahme
-- Pegelanzeige
+Speicherung:
 - Abspeicherung als wav-Datei
+Aufnahme:
+- Pegelanzeige
+- Zeitanzeige
 
 Achtung: in dieser Version kann der Teensy noch keine Aufnahmen wiedergeben!
