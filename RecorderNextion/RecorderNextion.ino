@@ -162,6 +162,7 @@ void loop() {
   if (TimerDisp >=dispDelay){
     if(checkLvl){
       displayLvl();
+      Serial.println(rms_mono.read());
     }
     
     if (mode == 1 /*|| mode == 2*/){
@@ -301,8 +302,6 @@ void StopButtonCallback(void *ptr)
 void PlayButtonCallback(void *ptr)
 {
   Serial.println("Play Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 0) startPlaying();
   switch(mode){
     case 0:
       startPlaying();
