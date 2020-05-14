@@ -1,5 +1,7 @@
 # AudioRecorder
 
+Branch von Hannes im Moment noch auf seinem Account: https://github.com/HannesSauerbaum/AudioRecorder/tree/branchHannes
+
 ## Verwendete Komponenten:
 - Teensy 4.0
 - Teensy Audio Shield
