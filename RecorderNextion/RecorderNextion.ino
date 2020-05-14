@@ -37,7 +37,6 @@
 //-----------------------------------------------------------------------------------------
 AudioInputI2S            i2s2 ;
 AudioAnalyzePeak         peak1;
-AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;
 AudioPlaySdWav           playWav1;
 AudioOutputI2S           i2s1;
@@ -45,9 +44,8 @@ AudioConnection          patchCord1(i2s2, 0, queue1, 0);
 AudioConnection          patchCord2(i2s2, 0, peak1, 0);
 AudioConnection          patchCord3(playWav1, 0, i2s1, 0);
 AudioConnection          patchCord4(playWav1, 0, i2s1, 1);
-AudioConnection          patchCord6(i2s2, 0, i2s1, 0);
-AudioConnection          patchCord7(i2s2, 0, i2s1, 1);
-AudioConnection          patchCord5(i2s2, 0, rms_mono, 0);
+AudioConnection          patchCord5(i2s2, 0, i2s1, 0);
+AudioConnection          patchCord6(i2s2, 0, i2s1, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
 
 //-----------------------------------------------------------------------------------------
@@ -162,6 +160,7 @@ void loop() {
   if (TimerDisp >=dispDelay){
     if(checkLvl){
       displayLvl();
+      Serial.println(peak1.read());
     }
     
     if (mode == 1 /*|| mode == 2*/){
@@ -256,7 +255,7 @@ void stopPlaying() {
 // ANZEIGE FUNKTIONEN
 //-----------------------------------------------------------------------------------------
 void displayLvl() {
-  uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
+  uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(peak1.read()))/-80)));
   Serial.println(ProgBarVal);
   ProgBarLevel.setValue(ProgBarVal); 
 }
