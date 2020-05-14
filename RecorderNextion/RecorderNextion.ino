@@ -301,8 +301,6 @@ void StopButtonCallback(void *ptr)
 void PlayButtonCallback(void *ptr)
 {
   Serial.println("Play Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 0) startPlaying();
   switch(mode){
     case 0:
       startPlaying();
