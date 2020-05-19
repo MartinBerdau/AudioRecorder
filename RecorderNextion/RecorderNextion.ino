@@ -27,29 +27,27 @@
 #include <Nextion.h>
 #include <RMSLevel.h>
 #include <WaveHeader.h>
-#include <string>
+#include <RunningTimeLabel.h>
+#include <FileBrowser.h>
 
 // GUItool: begin automatically generated code
 AudioInputI2S            AudioInput;           //xy=105,63
 AudioAnalyzePeak         peak1;          //xy=278,108
-// AUDIO ANALYZE RMS HINZUFUEGEN
-AudioAnalyzeRMS          rms_mono;
 AudioRecordQueue         queue1;         //xy=281,63
 AudioPlaySdWav           playSdWav1;       //xy=302,157
 AudioOutputI2S           AudioOutput;           //xy=470,120
 AudioMixer4              mixer1;
 AudioConnection          patchCord1(AudioInput, 0, queue1, 0);
 AudioConnection          patchCord2(AudioInput, 0, peak1, 0);
-AudioConnection          patchCord3(AudioInput, 0, rms_mono, 0);
-AudioConnection          patchCord4(playSdWav1, 0, mixer1, 0);
-AudioConnection          patchCord5(playSdWav1, 1, mixer1, 1);
-AudioConnection          patchCord6(AudioInput, 0, mixer1, 2);
-AudioConnection          patchCord7(AudioInput, 1, mixer1, 3);
-AudioConnection          patchCord8(mixer1, 0, AudioOutput, 0);
-AudioConnection          patchCord9(mixer1, 0, AudioOutput, 1);
+AudioConnection          patchCord3(playSdWav1, 0, mixer1, 0);
+AudioConnection          patchCord4(playSdWav1, 1, mixer1, 1);
+AudioConnection          patchCord5(AudioInput, 0, mixer1, 2);
+AudioConnection          patchCord6(AudioInput, 1, mixer1, 3);
+AudioConnection          patchCord7(mixer1, 0, AudioOutput, 0);
+AudioConnection          patchCord8(mixer1, 0, AudioOutput, 1);
 AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
-elapsedMillis            TimerRec;
-elapsedMillis            TimerLvl;
+elapsedMillis            TimerDisp;
+elapsedMillis            TimePassed;
 // GUItool: end automatically generated code
 
 // Nextion Buttons: NexButton(int page, int objectID, string name)
@@ -81,17 +79,19 @@ NexSlider sliderGain = NexSlider(0,11,"Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0,10,"Pegel");
 NexText textTimer = NexText(0,7,"Timer");
 NexText textFile = NexText(0,8,"FileName");
+NexText textAvailable = NexText(0,13,"Verfg");
 
 //Buttons und Textfeld fuer FileBrowser
 NexText textWavFile = NexText(2,1,"WavFile");
-NexButton buttonLoad = NexButton(2,4,"WavLoad");
 NexButton buttonPlayWav = NexButton(2,2,"PlayWav");
 NexButton buttonStopWav = NexButton(2,3,"WavStop");
 NexButton buttonWavUp = NexButton(2,5,"WavUp");
 NexButton buttonWavDown = NexButton(2,6,"WavDown");
 
 //MenuButtons
-
+// hier noch richtig anpassen
+NexButton buttonRecorder = NexButton(1,3,"Recorder");
+NexButton buttonPlayer = NexButton(1,2,"FileBrowser");
 
 // Liste mit Buttons
 NexTouch *nex_listen_list[] =
@@ -101,13 +101,13 @@ NexTouch *nex_listen_list[] =
   &buttonPlay,
   &buttonSave,
   &buttonCheckLvl,
-  &buttonLoad,
   &buttonPlayWav,
   &buttonStopWav,
   &buttonWavUp,
   &buttonWavDown,
-//  &uttonInput,
   &sliderGain,
+  &buttonRecorder,
+  &buttonPlayer,
   NULL
 };
 
@@ -125,42 +125,45 @@ int mode = 0;  // 0=stopped, 1=recording, 2=playing
 
 // The file where data is recorded
 File frec;
-WaveHeader waveheader;
 
 //Needed variables for saving stuff
+FileBrowser filebrowser;
 int fileCount = 0;
 char filename[] = "RECORD01.WAV";
-uint32_t availibleMemory_byte = 0;
+char lastSave[] = "RECORD01.WAV";
+char MemoryDisp[] = "16,00 GB / 00:00:00";
+uint32_t availableMemory_byte = 0;
+uint32_t availableTime_sec = 0;
 uint32_t usedMemory = 0;
-double SDsize = 0;
 Sd2Card card;
 SdVolume volume;
 File root;
-uint32_t volumesize = 0;
-uint32_t SDSize = 0;
+double volumesize = 0.0;
+unsigned long long SDSize = 0;
 
 // Variablen für den Wave-Header
+WaveHeader waveheader;
 unsigned long recByteSaved = 0L;
 
 // Initialising rms level meter
 // Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
 double tau = 0.125;
-double f_refresh = 10;
+double f_refresh = 4;
 RMSLevel rmsMeter(tau,f_refresh);
 bool checkLvl = false;
-int DispDelay = 1000000/f_refresh;
+unsigned int dispDelay = 1000/f_refresh;
 
 uint32_t sliderValue = 50;
 
 //variables for Timer
-int counterSec = 0;
-int counterMin = 0;
-int counterHr = 0;
+RunningTimeLabel tLabel;
 char TimerVal[] = "00:00:00";
 
 //Variables fuer FileBrowser
 char CurWav[] = "RECORD01.WAV";
 int WavCount = 0;
+
+bool saved = false;
 
 
 void setup() {
@@ -195,29 +198,31 @@ void setup() {
     }
   }
 
+  //Berechnung der SD-Kartengröße
   card.init(SPI_HALF_SPEED, SDCARD_CS_PIN);
-
-  // Now we will try to open the 'volume'/'partition' - it should be FAT16 or FAT32
   volume.init(card);
   
   SDSize = volume.blocksPerCluster();    // clusters are collections of blocks
   SDSize *= volume.clusterCount();       // we'll have a lot of clusters
   volumesize = SDSize;
   SDSize *= 512;
-  Serial.print("Volume size (Bytes): ");
-  Serial.println(SDSize);
   Serial.print("Volume size (Kbytes): ");
   volumesize /= 2;
   Serial.println(volumesize);
   Serial.print("Volume size (Mbytes): ");
   volumesize /= 1024;
   Serial.println(volumesize);
+  Serial.print("Volume size (Gbytes): ");
+  volumesize /= 1024;
+  Serial.println(volumesize);
+  
   root = SD.open("/");
   computeUsedMemory(root);
   checkCurrentFile();
-  
-  
 
+  //Mixereinstellungen beim Start
+  SetRecordingInput();
+  
   // Link Callbacks
   //buttonInput.attachPush(InputButtonCallback);
   buttonRecord.attachPush(RecordButtonCallback);
@@ -225,14 +230,14 @@ void setup() {
   buttonPlay.attachPush(PlayButtonCallback);
   buttonSave.attachPush(SaveButtonCallback);
   buttonCheckLvl.attachPush(buttonCheckLvlCallback);
-  buttonLoad.attachPush(buttonLoadCallback);
   buttonPlayWav.attachPush(buttonPlayWavCallback);
   buttonStopWav.attachPush(buttonStopWavCallback);
   buttonWavUp.attachPush(buttonWavUpCallback);
   buttonWavDown.attachPush(buttonWavDownCallback);
+  buttonRecorder.attachPush(buttonRecorderCallback);
+  buttonPlayer.attachPush(buttonPlayerCallback);
 //  sliderGain.attachPop(sliderGainCallback);
 
-//TimerDisp.begin(displayRefresh,DispDelay);
 }
 
 
@@ -241,25 +246,29 @@ void loop() {
   nexLoop(nex_listen_list);
 
   // If we're playing or recording, carry on...
-  if (mode == 1) {
-    continueRecording();
-    if (TimerRec >= 1000)
-    {
-      TimerUpdate();
-      TimerRec-=1000;
-    }
+  switch(mode){
+    case 0:
+      break;
+    case 1:
+      continueRecording();
+      break;
+    case 2:
+      continuePlaying();
+      break;
   }
-  if (mode == 2) {
-    continuePlaying();
-  }
-  if (checkLvl){
-    if(TimerLvl >=250){
+
+  if (TimerDisp >=dispDelay){
+    if(checkLvl){
       displayLvl();
-      TimerLvl-=250;
     }
+    
+    if (mode == 1 || mode == 2){
+      tLabel.updateLabel(TimePassed,TimerVal);
+      textTimer.setText(TimerVal);
+    }
+
+    TimerDisp-=dispDelay;
   }
-  // when using a microphone, continuously adjust gain
-  if (myInput == AUDIO_INPUT_MIC) adjustMicLevel();
 }
 
 
@@ -269,22 +278,22 @@ void checkCurrentFile()
   {
     if(SD.exists(filename)){
       fileCount += 1;
-      filename[6] = int(floor(fileCount/10))+'0';
-      filename[7] = int(fileCount%10)+'0';
+      filebrowser.computeCurName(filename,1);
     }
     else{
+      updateMemoryDisp();
       break;
     }
   }   
 }
 
 void saveCurrentFile(){
-  waveheader.writeWaveHeader(recByteSaved, frec);                 // Schreibt den Wave-Header auf die SD-Karte
+  strcpy(lastSave, filename);
   fileCount +=1;
-  filename[6] = int(floor(fileCount/10))+'0';
-  filename[7] = int(fileCount%10)+'0';
+  filebrowser.computeCurName(filename,1);
   usedMemory += recByteSaved+36;
   updateMemoryDisp();
+  saved = true;
 }
 
 void computeUsedMemory(File dir){
@@ -292,6 +301,7 @@ void computeUsedMemory(File dir){
     File entry = dir.openNextFile();
     usedMemory += entry.size();
     if(!entry){
+      usedMemory -= 8192;
       break;
     }
     entry.close();
@@ -300,27 +310,14 @@ void computeUsedMemory(File dir){
 }
 
 void updateMemoryDisp(){
-  availibleMemory_byte = SDSize-usedMemory;
-  textFile.setText(filename);  
-}
-
-void changeInput(){
-if (inputMode == 1){
-  myInput = AUDIO_INPUT_LINEIN;
-  Serial.println("Input: line");
-}
-if (inputMode == 2) {
-  myInput = AUDIO_INPUT_MIC;
-  Serial.println("Input: mic");
-}
+  filebrowser.computeAvailableMemory(MemoryDisp, SDSize, usedMemory, availableMemory_byte, availableTime_sec);
+  textFile.setText(filename);
+  textAvailable.setText(MemoryDisp);    
 }
 
 void startRecording() {
   Serial.println("startRecording");
     if (SD.exists(filename)) {
-    // The SD library writes new data to the end of the
-    // file, so to start a new recording, the old file
-    // must be deleted before new data is written.
     SD.remove(filename);
   }
   frec = SD.open(filename, FILE_WRITE);
@@ -329,42 +326,24 @@ void startRecording() {
     mode = 1;
     checkLvl = true;
     recByteSaved = 0L;
+    TimePassed = 0;
   }
 }
 
 void continueRecording() {
   if (queue1.available() >= 2) {
     byte buffer[512];
-    // Fetch 2 blocks from the audio library and copy
-    // into a 512 byte buffer.  The Arduino SD library
-    // is most efficient when full 512 byte sector size
-    // writes are used.
     memcpy(buffer, queue1.readBuffer(), 256);
     queue1.freeBuffer();
     memcpy(buffer+256, queue1.readBuffer(), 256);
     queue1.freeBuffer();
-    // write all 512 bytes to the SD card
-    //elapsedMicros usec = 0;
     frec.write(buffer, 512);
-    // Uncomment these lines to see how long SD writes
-    // are taking.  A pair of audio blocks arrives every
-    // 5802 microseconds, so hopefully most of the writes
-    // take well under 5802 us.  Some will take more, as
-    // the SD library also must write to the FAT tables
-    // and the SD card controller manages media erase and
-    // wear leveling.  The queue1 object can buffer
-    // approximately 301700 us of audio, to allow time
-    // for occasional high SD card latency, as long as
-    // the average write time is under 5802 us.
-    //Serial.print("SD write, us=");
-    //Serial.println(usec);
     recByteSaved += 512;                                // Addiert in jedem Durchlauf 512 Bytes   
   }
 }
 
 void stopRecording() {
   Serial.println("stopRecording");
-  resetTimer();
   queue1.end();
   if (mode == 1) {
     while (queue1.available() > 0) {
@@ -373,14 +352,30 @@ void stopRecording() {
       recByteSaved += 256;                                        // Addiert die letzten 256 Bytes bei Aufnahme-Stopp
     }
   }
+  waveheader.writeWaveHeader(recByteSaved, frec);                 // Schreibt den Wave-Header auf die SD-Karte
   mode = 0;
+  checkLvl = false;
+  saved = false;
+  TimePassed = 0;
 }
 
 
 void startPlaying() {
   Serial.println("startPlaying");
-  playSdWav1.play(filename);
-  mode = 2;
+  TimePassed = 0;
+  if (saved == true)
+  {
+    playFile(lastSave);
+    mode = 2;
+    return;
+  }
+  else
+  {
+    playFile(filename);
+    mode = 2;
+    return;
+  }
+
 }
 
 void continuePlaying() {
@@ -394,40 +389,7 @@ void stopPlaying() {
   Serial.println("stopPlaying");
   if (mode == 2) playSdWav1.stop();
   mode = 0;
-}
-
-void adjustMicLevel() {
-  // TODO: read the peak1 object and adjust sgtl5000_1.micGain()
-  // if anyone gets this working, please submit a github pull request :-)
-}
-
-void TimerUpdate(){
-  counterSec += 1;
-  if(counterSec >= 60){
-    counterSec = 0;
-    counterMin += 1;
-    if (counterMin >= 60){
-      counterMin = 0;
-      counterHr += 1;
-    }
-  } 
-  TimerVal[0] = char(int(floor(counterHr/10))+'0');
-  TimerVal[1] = char(int(counterHr%10)+'0');
-  TimerVal[3] = char(int(floor(counterMin/10))+'0');
-  TimerVal[4] = char(int(counterMin%10)+'0');
-  TimerVal[6] = char(int(floor(counterSec/10))+'0');
-  TimerVal[7] = char(int(counterSec%10)+'0');
-  
-
-  Serial.println(TimerVal);
-  textTimer.setText(TimerVal);
-
-}
-
-void resetTimer(){
-  counterSec = 0;
-  counterMin = 0;
-  counterHr = 0;
+  TimePassed = 0;
 }
 
 void displayRefresh(){
@@ -437,7 +399,7 @@ void displayRefresh(){
 }
 
 void displayLvl() {
-  uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(rms_mono.read()))/-80)));
+  uint32_t ProgBarVal = uint32_t(100*(1-(rmsMeter.updateRMS(double(peak1.read()))/-80)));
   ProgBarLevel.setValue(ProgBarVal); 
 }
 
@@ -454,64 +416,83 @@ void playFile(const char *filename)
   delay(5);
 }
 
+void SetRecordingInput(){
+  mixer1.gain(0,0);
+  mixer1.gain(1,0);
+  mixer1.gain(2,0.5);
+  mixer1.gain(3,0.5);
+}
+
+void SetPlayingInput(){
+  mixer1.gain(0,0.5);
+  mixer1.gain(1,0.5);
+  mixer1.gain(2,0);
+  mixer1.gain(3,0);
+}
+
 // PUSH CALLBACKS
 void RecordButtonCallback(void *ptr)
-{;
+{
+  SetRecordingInput();
   Serial.print("Record");
-  if (mode == 2) stopPlaying();
-  if (mode == 0) 
-  {
-    TimerLvl=0;
-    TimerRec=0;
-    startRecording();
-  }  
+  switch(mode){
+    case 0:
+      startRecording();
+      TimerDisp=0;
+      break;
+    case 1:
+      stopRecording();
+      break;
+    case 2:
+      break;
+  } 
 }
 
 void StopButtonCallback(void *ptr)
 {
   Serial.println("Stop Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 2) stopPlaying();
+  switch(mode){
+    case 0:
+      break;
+    case 1:
+      stopRecording();
+      break;
+    case 2:
+      stopPlaying();
+      SetRecordingInput();
+      break;
+  }
   checkLvl = false;
 }
 
 void PlayButtonCallback(void *ptr)
 {
+  SetPlayingInput();
   Serial.println("Play Button Press");
-  if (mode == 1) stopRecording();
-  if (mode == 0) startPlaying();
+  switch(mode){
+    case 0:
+      startPlaying();
+      break;
+    case 1:
+      startPlaying();
+      break;
+    case 2:
+      break;
+  }
 }
 
-void SaveButtonCallback(void *)
+void SaveButtonCallback(void *ptr)
 {
   Serial.println("Save Button Press");
   saveCurrentFile();
 }
-
-//void InputButtonCallback(void *ptr)
-//{
-//  Serial.println("Input Button Press");
-//  if (inputMode == 1)
-//  {
-//    changeInput();
-//    inputMode = 2;
-//    return;
-//  }
-//  if (inputMode == 2)
-//  {
-//    changeInput();
-//    inputMode = 1;
-//    return;
-//  }
-//  sgtl5000_1.inputSelect(myInput);
-//}
 
 void buttonCheckLvlCallback(void *ptr)
 {
   if (!checkLvl)
   {
     Serial.println("Checking Level");
-    TimerLvl = 0;
+    TimerDisp = 0;
     checkLvl = true;
   }
   else
@@ -528,14 +509,9 @@ void sliderGainCallback(void *ptr)
 }
 
 //Callbacks fuer FileBrowser
-void buttonLoadCallback(void *ptr)
-{
-  textWavFile.getText(CurWav, 13);
-  Serial.println(CurWav);
-}
-
 void buttonPlayWavCallback(void *ptr)
 {
+  textWavFile.getText(CurWav, 13);
   playFile(CurWav);
   Serial.println(CurWav);
 }
@@ -547,19 +523,10 @@ void buttonStopWavCallback(void *ptr)
 
 void buttonWavUpCallback(void *ptr)
 {
-  if (WavCount <= fileCount)
+  if (WavCount < (fileCount-1))
   {
     textWavFile.getText(CurWav, 12);
-    int Wav1 = int(CurWav[6]-'0');
-    int Wav2 = int(CurWav[7]-'0');
-    Wav2 += 1;
-    if (Wav2 >= 10)
-    {
-      Wav1 += 1;
-      Wav2 = 0;
-    }
-    CurWav[6] = char(Wav1 + '0');
-    CurWav[7] = char(Wav2 + '0');
+    filebrowser.computeCurName(CurWav,1);
     WavCount++;
     textWavFile.setText(CurWav);
   }
@@ -569,27 +536,19 @@ void buttonWavUpCallback(void *ptr)
 void buttonWavDownCallback(void *ptr)
 {
   textWavFile.getText(CurWav, 13);
-  int Wav1 = int(CurWav[6]-'0');
-  int Wav2 = int(CurWav[7]-'0');
-  if (Wav1 >= 0 && Wav2 >= 0)
-  {
-    if (Wav1 == 0 && Wav2 == 1)
-    {
-      Wav1 = 0;
-      Wav2 = 1;
-    }
-    else
-    {
-    Wav2 -= 1;
-    if (Wav2 < 0)
-   {
-      Wav1 -= 1;
-      Wav2 = 9;
-   }
-    }
-    CurWav[6] = char(Wav1 + '0');
-    CurWav[7] = char(Wav2 + '0');
-  }
+  filebrowser.computeCurName(CurWav,0);
   WavCount--;
   textWavFile.setText(CurWav);
+}
+
+void buttonRecorderCallback(void *ptr)
+{
+  Serial.println("Recorder");
+  SetRecordingInput();
+}
+
+void buttonPlayerCallback(void *ptr)
+{
+  Serial.println("FileBrowser");
+  SetPlayingInput();
 }
