@@ -624,11 +624,11 @@ void buttonPlayerCallback(void *ptr)
 
 //Callbacks fuer EQ Kram
 void buttonEQSettingsCallback(void *ptr){
-  EQf0Slider.setValue(uint32_t(f0Gain*12));
-  EQf1Slider.setValue(uint32_t(f1Gain*12));
-  EQf2Slider.setValue(uint32_t(f2Gain*12));
-  EQf3Slider.setValue(uint32_t(f3Gain*12));
-  EQf4Slider.setValue(uint32_t(f4Gain*12));
+  EQf0Slider.setValue(uint32_t(f0Gain*12)+12);
+  EQf1Slider.setValue(uint32_t(f1Gain*12)+12);
+  EQf2Slider.setValue(uint32_t(f2Gain*12)+12);
+  EQf3Slider.setValue(uint32_t(f3Gain*12)+12);
+  EQf4Slider.setValue(uint32_t(f4Gain*12)+12);
 
   EQf0Val.setValue(uint32_t(f0Gain*12));
   EQf1Val.setValue(uint32_t(f1Gain*12));
@@ -648,38 +648,38 @@ void buttonEQResetCallback(void *ptr){
 }
 
 void EQf0SliderCallback(void *ptr){
-  uint32_t f0Gain_dB;
-  EQf0Slider.getValue(f0Gain_dB);
-  f0Gain = double(f0Gain_dB/12.0);
-  sgtl5000_1.eqBand(1,f0Gain);
+  uint32_t f0Gain_dB = 0;
+  EQf0Slider.getValue(&f0Gain_dB);
+  f0Gain = (double(f0Gain_dB)-12.0)/12.0;
+  sgtl5000_1.eqBand(0,f0Gain);
 }
 
 void EQf0ButPCallback(void *ptr){
-  if(f0Gain<1.0){
-    f0Gain+=1/12;
-    sgtl5000_1.eqBand(1,f0Gain);
-  }
+  uint32_t f0Gain_dB = 0;
+  EQf0Val.getValue(&f0Gain_dB);
+  f0Gain = double(f0Gain_dB)/12.0;
+  sgtl5000_1.eqBand(0,f0Gain);
 }
 
 void EQf0ButMCallback(void *ptr){
-    if(f0Gain>-1.0){
-    f0Gain-=1/12;
-    sgtl5000_1.eqBand(1,f0Gain);
-  }
+  uint32_t f0Gain_dB = 0;
+  EQf0Val.getValue(&f0Gain_dB);
+  f0Gain = double(f0Gain_dB)/12.0;
+  sgtl5000_1.eqBand(0,f0Gain);
 }
 
 void EQf1SliderCallback(void *ptr){
-  uint32_t f1Gain_dB;
-  EQf1Slider.getValue(f1Gain_dB);
-  f1Gain = double(f1Gain_dB/12.0);
-  sgtl5000_1.eqBand(2,f1Gain);  
+  uint32_t f1Gain_dB = 0;
+  EQf1Slider.getValue(&f1Gain_dB);
+  f1Gain = (double(f1Gain_dB)-12)/12.0;
+  sgtl5000_1.eqBand(1,f1Gain);  
 }
 
 void EQf1ButPCallback(void *ptr){
-  if(f1Gain<1.0){
-    f1Gain+=1/12;
-    sgtl5000_1.eqBand(2,f1Gain);
-  }  
+  uint32_t f1Gain_dB = 0;
+  EQf1Val.getValue(&f1Gain_dB);
+  f1Gain = double(f1Gain_dB)/12.0;
+  sgtl5000_1.eqBand(1,f1Gain);
 }
 
 void EQf1ButMCallback(void *ptr){
@@ -690,10 +690,10 @@ if(f1Gain>-1.0){
 }
 
 void EQf2SliderCallback(void *ptr){
-  uint32_t f2Gain_dB;
-  EQf2Slider.getValue(f2Gain_dB);
-  f2Gain = double(f2Gain_dB/12.0);
-  sgtl5000_1.eqBand(3,f0Gain);  
+  uint32_t f2Gain_dB = 0;
+  EQf2Slider.getValue(&f2Gain_dB);
+  f2Gain = (double(f2Gain_dB)-12)/12.0;
+  sgtl5000_1.eqBand(2,f2Gain);  
 }
 
 void EQf2ButPCallback(void *ptr){
@@ -711,10 +711,10 @@ if(f2Gain>-1.0){
 }
 
 void EQf3SliderCallback(void *ptr){
-  uint32_t f3Gain_dB;
-  EQf3Slider.getValue(f3Gain_dB);
-  f3Gain = double(f3Gain_dB/12.0);
-  sgtl5000_1.eqBand(4,f3Gain);
+  uint32_t f3Gain_dB = 0;
+  EQf3Slider.getValue(&f3Gain_dB);
+  f3Gain = (double(f3Gain_dB)-12)/12.0;
+  sgtl5000_1.eqBand(3,f3Gain);
 }
 
 void EQf3ButPCallback(void *ptr){
@@ -732,10 +732,11 @@ if(f3Gain>-1.0){
 }
 
 void EQf4SliderCallback(void *ptr){
-  uint32_t f4Gain_dB;
-  EQf4Slider.getValue(f4Gain_dB);
-  f4Gain = double(f4Gain_dB/12.0);
-  sgtl5000_1.eqBand(5,f4Gain);
+  uint32_t f4Gain_dB = 0;
+  EQf4Slider.getValue(&f4Gain_dB);
+  f4Gain = (double(f4Gain_dB)-12)/12.0;
+  Serial.println(f4Gain);
+  sgtl5000_1.eqBand(4,f4Gain);
 }
 
 void EQf4ButPCallback(void *ptr){
