@@ -683,10 +683,10 @@ void EQf1ButPCallback(void *ptr){
 }
 
 void EQf1ButMCallback(void *ptr){
-if(f1Gain>-1.0){
-    f1Gain-=1/12;
-    sgtl5000_1.eqBand(2,f1Gain);
-  }  
+  uint32_t f1Gain_dB = 0;
+  EQf1Val.getValue(&f1Gain_dB);
+  f1Gain = double(f1Gain_dB)/12.0;
+  sgtl5000_1.eqBand(1,f1Gain);
 }
 
 void EQf2SliderCallback(void *ptr){
@@ -697,17 +697,17 @@ void EQf2SliderCallback(void *ptr){
 }
 
 void EQf2ButPCallback(void *ptr){
-  if(f2Gain<1.0){
-    f2Gain+=1/12;
-    sgtl5000_1.eqBand(3,f2Gain);
-  }  
+  uint32_t f2Gain_dB = 0;
+  EQf2Val.getValue(&f2Gain_dB);
+  f2Gain = double(f2Gain_dB)/12.0;
+  sgtl5000_1.eqBand(2,f2Gain); 
 }
 
 void EQf2ButMCallback(void *ptr){
-if(f2Gain>-1.0){
-    f2Gain-=1/12;
-    sgtl5000_1.eqBand(3,f2Gain);
-  }  
+  uint32_t f2Gain_dB = 0;
+  EQf2Val.getValue(&f2Gain_dB);
+  f2Gain = double(f2Gain_dB)/12.0;
+  sgtl5000_1.eqBand(2,f2Gain); 
 }
 
 void EQf3SliderCallback(void *ptr){
@@ -718,17 +718,17 @@ void EQf3SliderCallback(void *ptr){
 }
 
 void EQf3ButPCallback(void *ptr){
-  if(f3Gain<1.0){
-    f3Gain+=1/12;
-    sgtl5000_1.eqBand(4,f3Gain);
-  }  
+  uint32_t f3Gain_dB = 0;
+  EQf3Val.getValue(&f3Gain_dB);
+  f3Gain = double(f3Gain_dB)/12.0;
+  sgtl5000_1.eqBand(3,f3Gain);  
 }
 
 void EQf3ButMCallback(void *ptr){
-if(f3Gain>-1.0){
-    f3Gain-=1/12;
-    sgtl5000_1.eqBand(4,f3Gain);
-  }  
+  uint32_t f3Gain_dB = 0;
+  EQf3Val.getValue(&f3Gain_dB);
+  f3Gain = double(f3Gain_dB)/12.0;
+  sgtl5000_1.eqBand(3,f3Gain);  
 }
 
 void EQf4SliderCallback(void *ptr){
@@ -740,15 +740,15 @@ void EQf4SliderCallback(void *ptr){
 }
 
 void EQf4ButPCallback(void *ptr){
-  if(f4Gain<1.0){
-    f4Gain+=1/12;
-    sgtl5000_1.eqBand(5,f4Gain);
-  }  
+  uint32_t f4Gain_dB = 0;
+  EQf4Val.getValue(&f4Gain_dB);
+  f4Gain = double(f4Gain_dB)/12.0;
+  sgtl5000_1.eqBand(4,f4Gain);
 }
 
 void EQf4ButMCallback(void *ptr){
-if(f4Gain>-1.0){
-    f4Gain-=1/12;
-    sgtl5000_1.eqBand(5,f4Gain);
-  }  
+  uint32_t f4Gain_dB = 0;
+  EQf4Val.getValue(&f4Gain_dB);
+  f4Gain = double(f4Gain_dB)/12.0;
+  sgtl5000_1.eqBand(4,f4Gain); 
 }
