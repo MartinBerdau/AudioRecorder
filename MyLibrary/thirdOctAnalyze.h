@@ -12,6 +12,7 @@ public:
     thirdOctAnalyze(int averages);
     void setAverages(int averages);
     void updateData(AudioAnalyzeFFT1024 fft1024, double *dataVec);
+    void reset(double *dataVec);
     
 private:
     static const int m_bands = 16;

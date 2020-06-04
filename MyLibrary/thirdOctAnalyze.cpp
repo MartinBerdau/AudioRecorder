@@ -32,6 +32,14 @@ void thirdOctAnalyze::updateData(AudioAnalyzeFFT1024 fft1024, double *dataVec){
     }
 }
 
+void thirdOctAnalyze::reset(double *dataVec)
+{
+    for (int kk = 0; kk < m_bands; kk++)
+    {
+        dataVec[kk] = 0;
+    }
+}
+
 
 void thirdOctAnalyze::setConstants()
 {
