@@ -1,3 +1,5 @@
+//Updated version
+
 #include "AGC.h"
 
 AGC::AGC()
