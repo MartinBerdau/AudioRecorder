@@ -1,36 +1,30 @@
 #include "AutomaticGainControl.h"
+#include "math.h"
 
-#define AGCMAX 63
-#define AGCMIN 40
+#define AGCMAX 12
+#define AGCMIN -12
 
-AutomaticGainControl::AutomaticGainControl(int AGChangtime, double AGCtresh, double AGCslopeIncrease, double AGCslopeDecrease, double peak)
-    : m_gainReduceChecker(),
-    m_gainReduceCounter(),
-    m_agcAttack(1)    
+AutomaticGainControl::AutomaticGainControl()
+    :m_agcAmpOut()
 {
-    m_agcHangtime = AGChangtime;
-    m_agcThresh = AGCtresh;
-    m_agcSlopeIncrease = AGCslopeIncrease;
-    m_agcSlopeDecrease = AGCslopeDecrease;
-    m_peak = peak;
+    m_agcHangtime = 100;
+    m_agcSlopeIncrease = 0.05;
+    m_agcSlopeDecrease = 0.5;
+    m_agcThresh = 0.9;
 }
 
-double AutomaticGainControl::AGC(double AGCvalue)
+
+double AutomaticGainControl::getAGC(double peak)
 {
+    m_peak = peak;
     static int m_hangtimer;
-    static double m_agcGain = 40;
+    static double m_agcGain = 0;
     static double m_agcGainOut;
 
-    // Check if signal is too loud
-    for (m_gainReduceCounter = 0, m_gainReduceChecker = 0; m_gainReduceCounter < m_agcAttack; m_gainReduceCounter++)
-    {
-        if (m_peak > m_agcThresh) m_gainReduceChecker++;
-    }
-   
     // Gain Decrease
-    if ((m_gainReduceChecker == m_agcAttack) || ((m_gainReduceChecker > 0) && (m_hangtimer >= m_agcHangtime)))
+    if (m_peak > m_agcThresh)
     {
-        m_agcGainOut = (m_agcGain - m_agcSlopeDecrease);
+        m_agcGainOut = m_agcGain - m_agcSlopeDecrease;
 
         // Reduce limit 
         if (m_agcGainOut <= AGCMIN) m_agcGainOut = AGCMIN;
@@ -57,6 +51,8 @@ double AutomaticGainControl::AGC(double AGCvalue)
 
         m_agcGain = m_agcGainOut;
     }
-    return m_agcGainOut;
+    m_agcAmpOut = pow(10, m_agcGainOut / 20);
+
+    return m_agcAmpOut;
 }
 
