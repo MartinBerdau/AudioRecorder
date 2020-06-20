@@ -298,19 +298,6 @@ unsigned int dispDelay = 1000 / f_refresh;
 //-----------------------------------------------------------------------------------------
 // AUTOMATIC GAIN CONTROL
 //-----------------------------------------------------------------------------------------
-/*AGC agc;
-bool AGCOn = false;
-double f_agc = 100;
-unsigned int AGCRefresh = 1000/f_agc;
-double SetPoint = -14.0;
-double Range = 6.0;
-AGC::timeConstants timeConst = AGC::timeConstants::medium;
-double Ratio = 5.0;
-uint32_t ReactVal = 2;*/
-
-//-----------------------------------------------------------------------------------------
-// AUTOMATIC GAIN CONTROL
-//-----------------------------------------------------------------------------------------
 AutomaticGainControl agc;
 bool AGCOn = false; 
 int AGChangtime;               
@@ -409,6 +396,9 @@ void setup() {
   volumesize /= 1024;
   Serial.println(volumesize);
 
+  int t = getTeensy4Time() + 60*60;
+  setTime(t);
+  Serial.println(t);
   root = SD.open("/");
   computeUsedMemory(root);
   checkCurrentFile();
@@ -804,6 +794,11 @@ void AutoGain()
     amp1.gain(AGCgain);
 }
 
+time_t getTeensy4Time()
+{
+  return Teensy3Clock.get();
+}
+
 //-----------------------------------------------------------------------------------------
 // CALLBACK FUNCTIONS
 //-----------------------------------------------------------------------------------------
@@ -1139,6 +1134,9 @@ void buttonApplyDCallback(void *ptr) {
   delay(5);
   NumYear.getValue(&Year);
   setTime(hours, mins, secs, Day, Month, Year);
+  int t=now();
+  Serial.println(t);
+  Teensy3Clock.set(t); // set the RTC
   SdFile::dateTimeCallback(dateTime);
 }
 
@@ -1149,6 +1147,9 @@ void buttonApplyTCallback(void *ptr) {
   delay(5);
   NumSec.getValue(&secs);
   setTime(hours, mins, secs, Day, Month, Year);
+  int t=now();
+  Serial.println(t);
+  Teensy3Clock.set(t); // set the RTC
   SdFile::dateTimeCallback(dateTime);
 }
 
