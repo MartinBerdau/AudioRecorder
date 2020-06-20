@@ -1,6 +1,3 @@
-// Version von Martin und Tammo (für eigenen Branch)
-// Erfordert als zusätzliche Library RMSLevel (von mir)
-
 // QUELLE: TIMESTAMP: https://forum.arduino.cc/index.php?topic=348562.0
 //
 // Editiertes Beispiel-File.
@@ -28,7 +25,9 @@
 #include <SerialFlash.h>
 #include <Nextion.h>
 #include <TimeLib.h>
-#include <DS1307RTC.h>  // a basic DS1307 library that returns time as a time_t
+#include <DS1307RTC.h>
+
+// own Files
 #include <RMSLevel.h>
 #include <WaveHeader.h>
 #include <RunningTimeLabel.h>
@@ -37,35 +36,54 @@
 #include <AutomaticGainControl.h>
 #include <AGC.h>
 
-// GUItool: begin automatically generated code
-AudioInputI2S            AudioInput;           //xy=105,63
-AudioAnalyzePeak         peak1;          //xy=278,108
-AudioRecordQueue         queue1;         //xy=281,63
-AudioPlaySdWav           playSdWav1;       //xy=302,157
-AudioOutputI2S           AudioOutput;           //xy=470,120
-AudioMixer4              mixer1;
+//-----------------------------------------------------------------------------------------
+// AUDIO OBJECTS
+//-----------------------------------------------------------------------------------------
+AudioInputI2S            AudioInput;
+AudioAnalyzePeak         peak1;
+AudioAnalyzePeak         peak2;
+AudioRecordQueue         queueInt;
+AudioRecordQueue         queueExt;
+AudioPlaySdWav           playSdWav1;
+AudioOutputI2S           AudioOutput;
+AudioMixer4              mixerPlay;
+AudioMixer4              mixerRec;
 AudioAnalyzeFFT1024      fft;
 AudioAmplifier           amp1;
+AudioControlSGTL5000     sgtl5000_1;
 
-AudioConnection          patchCord1(AudioInput, 1, amp1, 0);
-AudioConnection          patchCord2(amp1, queue1);
-AudioConnection          patchCord3(amp1, peak1);
-AudioConnection          patchCord4(playSdWav1, 0, mixer1, 0);
-AudioConnection          patchCord5(playSdWav1, 1, mixer1, 1);
-AudioConnection          patchCord6(amp1, 0, mixer1, 2);
-AudioConnection          patchCord7(amp1, 0, mixer1, 3);
-AudioConnection          patchCord8(mixer1, 0, AudioOutput, 0);
-AudioConnection          patchCord9(mixer1, 0, AudioOutput, 1);
-AudioConnection          patchCord10(amp1, fft);
+//-----------------------------------------------------------------------------------------
+// CONNECTIONS
+//-----------------------------------------------------------------------------------------
+AudioConnection          patchCord1(AudioInput, 0, mixerRec, 0);
+AudioConnection          patchCord2(AudioInput, 0, mixerRec, 1);
+AudioConnection          patchCord3(AudioInput, 1, mixerRec, 2);
+AudioConnection          patchCord4(AudioInput, 1, mixerRec, 3);
+AudioConnection          patchCord5(mixerRec, 0, amp1, 0);
+AudioConnection          patchCord6(amp1, queueInt);
+AudioConnection          patchCord7(amp1, peak1);
+AudioConnection          patchCord8(amp1, peak2);
+AudioConnection          patchCord9(playSdWav1, 0, mixerPlay, 0);
+AudioConnection          patchCord10(playSdWav1, 1, mixerPlay, 1);
+AudioConnection          patchCord11(amp1, 0, mixerPlay, 2);
+AudioConnection          patchCord12(amp1, 0, mixerPlay, 3);
+AudioConnection          patchCord13(mixerPlay, 0, AudioOutput, 0);
+AudioConnection          patchCord14(mixerPlay, 0, AudioOutput, 1);
+AudioConnection          patchCord15(amp1, fft);
 
-AudioControlSGTL5000     sgtl5000_1;     //xy=265,212
+//-----------------------------------------------------------------------------------------
+// TIMING
+//-----------------------------------------------------------------------------------------
 elapsedMillis            TimerDisp;
 elapsedMillis            TimerFFT;
 elapsedMillis            TimePassed;
 elapsedMillis            TimerAGC;
-// GUItool: end automatically generated code
 
-// Nextion Buttons: NexButton(int page, int objectID, string name)
+
+//-----------------------------------------------------------------------------------------
+// BUTTONS
+//-----------------------------------------------------------------------------------------
+// recorder
 NexButton buttonRecord = NexButton(0, 3, "Record");
 NexButton buttonStop = NexButton(0, 2, "Stop");
 NexButton buttonPlay = NexButton(0, 1, "Play");
@@ -74,14 +92,13 @@ NexButton buttonCheckLvl = NexButton(0, 12, "CheckLvl");
 NexButton buttonVolUp = NexButton(0, 19, "VolUp");
 NexButton buttonVolDown = NexButton(0, 20, "VolDown");
 NexButton buttonMute = NexButton(0, 21, "Mute");
-
 NexSlider sliderGain = NexSlider(0, 11, "Gain");
 NexProgressBar ProgBarLevel = NexProgressBar(0, 10, "Pegel");
 NexText textTimer = NexText(0, 7, "Timer");
 NexText textFile = NexText(0, 8, "FileName");
 NexText textAvailable = NexText(0, 13, "Verfg");
 
-//Buttons und Textfeld fuer FileBrowser
+// file browser
 NexText textWavFile = NexText(2, 1, "WavFile");
 NexText textWavSize = NexText(2, 10, "WavSize");
 NexText textWavLen = NexText(2, 12, "WavLen");
@@ -91,19 +108,20 @@ NexButton buttonStopWav = NexButton(2, 3, "WavStop");
 NexButton buttonWavUp = NexButton(2, 4, "WavUp");
 NexButton buttonWavDown = NexButton(2, 5, "WavDown");
 
-//MenuButtons
-// hier noch richtig anpassen
+// menu buttons
 NexButton buttonRecorder = NexButton(1, 3, "Recorder");
 NexButton buttonPlayer = NexButton(1, 2, "FileBrowser");
 NexButton buttonSpectrum = NexButton(1, 7, "Spectrum");
 NexButton buttonAGCSet = NexButton(1, 6, "AGCSettings");
 
-//RecorderSettings
+// recorder settings
 NexButton buttonEQSettings = NexButton(3, 8, "EQSettings");
 NexButton buttonEQReset = NexButton(3, 9, "EQReset");
-//Hier noch einstellungen fuer Datum Uhrzeit etc.
+NexButton buttonInputInt = NexButton(3, 4, "IntMic");
+NexButton buttonInputExt = NexButton(3, 5, "ExtMic");
+NexButton buttonInputLine = NexButton(3, 6, "LineIn");
 
-//EQ-Items
+// eq items
 NexSlider EQf0Slider = NexSlider(5, 2, "EQSlider0");
 NexButton EQf0ButP = NexButton(5, 8, "EQf0p");
 NexButton EQf0ButM = NexButton(5, 18, "EQf0m");
@@ -125,7 +143,7 @@ NexButton EQf4ButP = NexButton(5, 12, "EQf4p");
 NexButton EQf4ButM = NexButton(5, 22, "EQf4m");
 NexNumber EQf4Val = NexNumber(5, 17, "Valf4");
 
-//FFT-Items
+// fft items
 NexProgressBar f0Band = NexProgressBar(6, 2, "f0FFT");
 NexProgressBar f1Band = NexProgressBar(6, 3, "f1FFT");
 NexProgressBar f2Band = NexProgressBar(6, 4, "f2FFT");
@@ -146,20 +164,15 @@ NexNumber AveBlocks = NexNumber(6, 23, "ValAve");
 NexButton ApplyAve = NexButton(6, 24, "ApplyAve");
 NexButton SpecMenu = NexButton(6, 19, "Menu");
 
-//AGC
+// agc
 NexButton buttonAGC = NexButton(0, 16, "AGC");
-/*NexSlider sliderAGChang = NexSlider(4, 6, "AGCChang");
+NexSlider sliderAGChang = NexSlider(4, 6, "AGCChang");
 NexSlider sliderAGCslopeInc = NexSlider(4, 7, "AGCslopeInc");
 NexSlider sliderAGCslopeDec = NexSlider(4, 8, "AGCslopeDec");
-NexSlider sliderAGCtresh = NexSlider(4, 9, "AGCthresh");*/
+NexSlider sliderAGCthresh = NexSlider(4, 28, "AGCthresh");
 
-//Eigene AGC
-NexSlider sliderSetPoint = NexSlider(4,4,"SliderSetPoint");
-NexSlider sliderRange = NexSlider(4,7,"SliderRange");
-NexSlider sliderReact = NexSlider(4,10,"SliderReact");
-NexSlider sliderRatio = NexSlider(4,17,"SliderRatio");
 
-//Settings Buttons and Numbers
+// date settings
 NexButton buttonApplyD = NexButton(7, 16, "ApplyD");
 NexButton buttonApplyT = NexButton(7, 28, "ApplyT");
 NexNumber NumDay = NexNumber(7, 5, "Day");
@@ -170,7 +183,7 @@ NexNumber NumMin = NexNumber(7, 19, "Min");
 NexNumber NumSec = NexNumber(7, 21, "Sec");
 
 
-// Liste mit Buttons
+// button list
 NexTouch *nex_listen_list[] =
 {
   &buttonRecord,
@@ -190,8 +203,11 @@ NexTouch *nex_listen_list[] =
   &buttonPlayer,
   &buttonSpectrum,
   &buttonEQSettings,
-  &buttonAGCSet,
   &buttonEQReset,
+  &buttonInputInt,
+  &buttonInputExt,
+  &buttonInputLine,
+  &buttonAGCSet,
   &EQf0Slider,
   &EQf0ButP,
   &EQf0ButM,
@@ -210,38 +226,39 @@ NexTouch *nex_listen_list[] =
   &ApplyAve,
   &SpecMenu,
   &buttonAGC,
-  //&sliderAGChang,
-  //&sliderAGCslopeInc,
-  //&sliderAGCslopeDec,
-  //&sliderAGCtresh,
-  &sliderSetPoint,
-  &sliderRange,
-  &sliderReact,
-  &sliderRatio,
+  &sliderAGChang,
+  &sliderAGCslopeInc,
+  &sliderAGCslopeDec,
+  &sliderAGCthresh,
   &buttonApplyD,
   &buttonApplyT,
   NULL
 };
 
-// which input on the audio shield will be used?
-int inputMode = 1;
+//-----------------------------------------------------------------------------------------
+// GENERAL SETTINGS
+//-----------------------------------------------------------------------------------------
 int myInput = AUDIO_INPUT_LINEIN;
 
-// Use these with the Teensy Audio Shield
 #define SDCARD_CS_PIN    10
 #define SDCARD_MOSI_PIN  11
 #define SDCARD_SCK_PIN   13
 
-// Remember which mode we're doing
 int mode = 0;  // 0=stopped, 1=recording, 2=playing
+int switchMode = 0;               // 0 = internes Mikrofon, 1 = externes 
 double InGain = 1.0;
 double HpVol = 0.5; //Headphone Volume
 bool muted = false;
 
-// The file where data is recorded
+
+
+// file where data is recorded
 File frec;
 
-//Needed variables for saving stuff
+//-----------------------------------------------------------------------------------------
+// FILE BROWSER
+//-----------------------------------------------------------------------------------------
+// needed variables for saving stuff
 FileBrowser filebrowser;
 int fileCount = 0;
 char filename[] = "RECORD01.WAV";
@@ -256,69 +273,71 @@ File root;
 double volumesize = 0.0;
 unsigned long long SDSize = 0;
 
-// Variablen für den Wave-Header
+char CurWav[] = "RECORD01.WAV";
+char WavSizeChar[] = "00.00 GB";
+char WavLenChar[] = "00:00:00";
+int WavCount = 0;
+File WavFile;
+bool saved = false;
+
+//-----------------------------------------------------------------------------------------
+// WAVE HEADER
+//-----------------------------------------------------------------------------------------
 WaveHeader waveheader;
 unsigned long recByteSaved = 0L;
 
-// Initialising rms level meter
-// Vielleicht noch 512 als Variable anlegen, so BlockLength oder so?
+//-----------------------------------------------------------------------------------------
+// RMS-METER
+//-----------------------------------------------------------------------------------------
 double tau = 0.125;
 double f_refresh = 4;
 RMSLevel rmsMeter(tau, f_refresh);
 bool checkLvl = false;
 unsigned int dispDelay = 1000 / f_refresh;
 
-uint32_t sliderValue = 50;
-
 //-----------------------------------------------------------------------------------------
-// Automatic Gain Control
+// AUTOMATIC GAIN CONTROL
 //-----------------------------------------------------------------------------------------
-AGC agc;
+/*AGC agc;
 bool AGCOn = false;
 double f_agc = 100;
 unsigned int AGCRefresh = 1000/f_agc;
-double peak = 0.0;
 double SetPoint = -14.0;
 double Range = 6.0;
 AGC::timeConstants timeConst = AGC::timeConstants::medium;
 double Ratio = 5.0;
-uint32_t ReactVal = 2;
+uint32_t ReactVal = 2;*/
 
+//-----------------------------------------------------------------------------------------
+// AUTOMATIC GAIN CONTROL
+//-----------------------------------------------------------------------------------------
+AutomaticGainControl agc;
+bool AGCOn = false; 
+int AGChangtime;               
+double AGCthresh;             
+double AGCslopeIncrease;         
+double AGCslopeDecrease;      
+double peak; 
+double AGCgain;
 
-/*
-int AGCMode = 1;
-int AGChangtime = 500;
-double AGCtresh = 0.95;
-double AGCslopeIncrease  = 0.025;
-double AGCslopeDecrease  = 1.0;
-AutomaticGainControl agc(AGChangtime, AGCtresh, AGCslopeIncrease, AGCslopeDecrease);
-double peak;
-elapsedMillis MilliSec = 0;
-double AGCvalue;*/
-
-
-
-//variables for Timer
+//-----------------------------------------------------------------------------------------
+// RUNNING TIME LABEL
+//-----------------------------------------------------------------------------------------
 RunningTimeLabel tLabel;
 char TimerVal[] = "00:00:00";
 
-//Variables fuer FileBrowser
-char CurWav[] = "RECORD01.WAV";
-char WavSizeChar[] = "00.00 GB";
-char WavLenChar[] = "00:00:00";
-int WavCount = 0;
-File WavFile;
-
-bool saved = false;
-
-//variables for EQ
+//-----------------------------------------------------------------------------------------
+// EQ
+//-----------------------------------------------------------------------------------------
 double f0Gain = 0.0;
 double f1Gain = 0.0;
 double f2Gain = 0.0;
 double f3Gain = 0.0;
 double f4Gain = 0.0;
 
-//Variables for fft
+//-----------------------------------------------------------------------------------------
+// FFT
+//-----------------------------------------------------------------------------------------
 static const int nrOfBands = 16;
 double dataVec[nrOfBands];
 double averages = 50;
@@ -327,7 +346,9 @@ bool analyzeActiv = false;
 unsigned int FFTupdate = 1000 / 20;
 int bandCounter = 0;
 
-//TimeStamp
+//-----------------------------------------------------------------------------------------
+// DATE
+//-----------------------------------------------------------------------------------------
 char timestamp[30];
 uint32_t Day = 1;
 uint32_t Month = 1;
@@ -336,6 +357,9 @@ uint32_t hours = 0;
 uint32_t mins = 0;
 uint32_t secs = 0;
 
+//-----------------------------------------------------------------------------------------
+// SETUP
+//-----------------------------------------------------------------------------------------
 void setup() {
 
   nexInit();
@@ -346,13 +370,9 @@ void setup() {
   Serial1.end();
 
   Serial1.begin(115200);
-  //  sliderGain.setValue(sliderValue);
 
-  // Audio connections require memory, and the record queue
-  // uses this memory to buffer incoming audio.
   AudioMemory(256);
 
-  // Enable the audio shield, select input, and enable output
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(HpVol);
@@ -361,23 +381,22 @@ void setup() {
 
   amp1.gain(InGain);
 
-  // Initialize the SD card
   SPI.setMOSI(SDCARD_MOSI_PIN);
   SPI.setSCK(SDCARD_SCK_PIN);
   if (!(SD.begin(SDCARD_CS_PIN))) {
-    // stop here if no SD card, but print a message
     while (1) {
       Serial.println("Unable to access the SD card");
       delay(500);
     }
   }
 
-  //Berechnung der SD-Kartengröße
+  // calculating sd card size
+  // Source: Examples/SD/Cardinfo
   card.init(SPI_HALF_SPEED, SDCARD_CS_PIN);
   volume.init(card);
 
-  SDSize = volume.blocksPerCluster();    // clusters are collections of blocks
-  SDSize *= volume.clusterCount();       // we'll have a lot of clusters
+  SDSize = volume.blocksPerCluster();
+  SDSize *= volume.clusterCount();
   volumesize = SDSize;
   SDSize *= 512;
   Serial.print("Volume size (Kbytes): ");
@@ -394,10 +413,10 @@ void setup() {
   computeUsedMemory(root);
   checkCurrentFile();
 
-  //Mixereinstellungen beim Start
+  // initial mixer settings
   SetRecordingInput();
 
-  // Link Callbacks
+  // link callbacks
   buttonRecord.attachPush(RecordButtonCallback);
   buttonStop.attachPush(StopButtonCallback);
   buttonPlay.attachPush(PlayButtonCallback);
@@ -414,9 +433,13 @@ void setup() {
   buttonRecorder.attachPush(buttonRecorderCallback);
   buttonEQSettings.attachPush(buttonEQSettingsCallback);
   buttonEQReset.attachPush(buttonEQResetCallback);
+  buttonInputInt.attachPush(buttonInputIntCallback);
+  buttonInputExt.attachPush(buttonInputExtCallback);
+  buttonInputLine.attachPush(buttonInputLineCallback);
   buttonPlayer.attachPush(buttonPlayerCallback);
   buttonSpectrum.attachPush(buttonSpectrumCallback);
-  buttonAGCSet.attachPush(buttonAGCSetCallback);
+  //diese Callback funktion muss angepasst werden
+  //buttonAGCSet.attachPush(buttonAGCSetCallback);
   EQf0Slider.attachPop(EQf0SliderCallback);
   EQf0ButP.attachPush(EQf0ButPCallback);
   EQf0ButM.attachPush(EQf0ButMCallback);
@@ -435,24 +458,24 @@ void setup() {
   ApplyAve.attachPush(ApplyAveCallback);
   SpecMenu.attachPush(SpecMenuCallback);
   buttonAGC.attachPush(AGCButtonCallback);
-  /*sliderAGChang.attachPop(sliderAGChangCallback);
+  sliderAGChang.attachPop(sliderAGChangCallback);
   sliderAGCslopeInc.attachPop(sliderAGCslopeIncCallback);
   sliderAGCslopeDec.attachPop(sliderAGCslopeDecCallback);
-  sliderAGCtresh.attachPop(sliderAGCtreshCallback);*/
-
-  sliderSetPoint.attachPop(sliderSetPointCallback);
-  sliderRange.attachPop(sliderRangeCallback);
-  sliderReact.attachPop(sliderReactCallback);
-  sliderRatio.attachPop(sliderRatioCallback);
+  sliderAGCthresh.attachPush(sliderAGCthreshCallback);
   buttonApplyD.attachPush(buttonApplyDCallback);
   buttonApplyT.attachPush(buttonApplyTCallback);
 
-  setTime(hours, mins, secs, Day, Month, Year);
-  SdFile::dateTimeCallback(dateTime);
+  mixerRec.gain(0, 0.5);
+  mixerRec.gain(1, 0.5);
+  mixerRec.gain(2, 0);
+  mixerRec.gain(3, 0);
 
+  SdFile::dateTimeCallback(dateTime);
 }
 
-
+//-----------------------------------------------------------------------------------------
+// LOOP
+//-----------------------------------------------------------------------------------------
 void loop() {
   // Respond to button presses
   nexLoop(nex_listen_list);
@@ -489,16 +512,137 @@ void loop() {
     TimerFFT -= FFTupdate;
   }
 
-  if (TimerAGC >= AGCRefresh)
-  {
-    if (AGCOn) {
-      AGC();
-      //AutoGain();
-   }
-   TimerAGC -= AGCRefresh;
+  if (TimerAGC > 2)
+  { 
+    if (AGCOn){
+      AutoGain();
+      TimerAGC=0;
+    }
   }
 }
 
+//-----------------------------------------------------------------------------------------
+// BASIC FUNCTIONS
+//-----------------------------------------------------------------------------------------
+
+void startRecording() {
+  Serial.println("startRecording");
+  if (SD.exists(filename)) {
+    SD.remove(filename);
+  }
+  frec = SD.open(filename, FILE_WRITE);
+  if (frec) {
+    queueInt.begin();
+    mode = 1;
+    checkLvl = true;
+    recByteSaved = 0L;
+    TimePassed = 0;
+  }
+}
+
+void continueRecording() {
+  if (queueInt.available() >= 2) {
+    byte buffer[512];
+    memcpy(buffer, queueInt.readBuffer(), 256);
+    queueInt.freeBuffer();
+    memcpy(buffer + 256, queueInt.readBuffer(), 256);
+    queueInt.freeBuffer();
+    frec.write(buffer, 512);
+    recByteSaved += 512;                                // Addiert in jedem Durchlauf 512 Bytes
+  }
+}
+
+void stopRecording() {
+  Serial.println("stopRecording");
+  queueInt.end();
+  if (mode == 1) {
+    while (queueInt.available() > 0) {
+      frec.write((byte*)queueInt.readBuffer(), 256);
+      queueInt.freeBuffer();
+      recByteSaved += 256;                                        // Addiert die letzten 256 Bytes bei Aufnahme-Stopp
+    }
+  }
+  waveheader.writeWaveHeader(recByteSaved, frec);                 // Schreibt den Wave-Header auf die SD-Karte
+  mode = 0;
+  checkLvl = false;
+  saved = false;
+  TimePassed = 0;
+}
+
+
+void startPlaying() {
+  Serial.println("startPlaying");
+  TimePassed = 0;
+  if (saved == true)
+  {
+    playFile(lastSave);
+    mode = 2;
+    return;
+  }
+  else
+  {
+    playFile(filename);
+    mode = 2;
+    return;
+  }
+
+}
+
+void playFile(const char *filename)
+{
+  Serial.print("Playing file: ");
+  Serial.println(filename);
+
+  // Start playing the file.  This sketch continues to
+  // run while the file plays.
+  playSdWav1.play(filename);
+
+  // A brief delay for the library read WAV info
+  delay(5);
+}
+
+void continuePlaying() {
+  if (!playSdWav1.isPlaying()) {
+    playSdWav1.stop();
+    mode = 0;
+  }
+}
+
+void stopPlaying() {
+  Serial.println("stopPlaying");
+  if (mode == 2) playSdWav1.stop();
+  mode = 0;
+  TimePassed = 0;
+}
+
+//-----------------------------------------------------------------------------------------
+// DISPLAY FUNCTIONS
+//-----------------------------------------------------------------------------------------
+void displayRefresh() {
+  if (checkLvl) {
+    displayLvl();
+  }
+}
+
+void displayLvl() {
+  uint32_t ProgBarVal = uint32_t(100 * (1 - (rmsMeter.updateRMS(double(peak1.read())) / -80)));
+  //Serial.println(rmsMeter.updateRMS(double(peak1.read())));
+  ProgBarLevel.setValue(ProgBarVal);
+ if (AGCOn) {
+    uint32_t gainVal = uint32_t(20*log10(AGCgain))+12;
+    sliderGain.setValue(gainVal);
+  }
+}
+
+void updateMemoryDisp() {
+  filebrowser.computeAvailableMemory(MemoryDisp, SDSize, usedMemory, availableMemory_byte, availableTime_sec);
+  textFile.setText(filename);
+  textAvailable.setText(MemoryDisp);
+}
+
+//-----------------------------------------------------------------------------------------
+// FILE BROWSER FUNCTIONS
+//-----------------------------------------------------------------------------------------
 void checkCurrentFile()
 {
   while (fileCount >= 0)
@@ -540,143 +684,6 @@ void computeUsedMemory(File dir) {
   updateMemoryDisp();
 }
 
-void updateMemoryDisp() {
-  filebrowser.computeAvailableMemory(MemoryDisp, SDSize, usedMemory, availableMemory_byte, availableTime_sec);
-  textFile.setText(filename);
-  textAvailable.setText(MemoryDisp);
-}
-
-void startRecording() {
-  Serial.println("startRecording");
-  if (SD.exists(filename)) {
-    SD.remove(filename);
-  }
-  frec = SD.open(filename, FILE_WRITE);
-  if (frec) {
-    queue1.begin();
-    mode = 1;
-    checkLvl = true;
-    recByteSaved = 0L;
-    TimePassed = 0;
-  }
-}
-
-void continueRecording() {
-  if (queue1.available() >= 2) {
-    byte buffer[512];
-    memcpy(buffer, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
-    memcpy(buffer + 256, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
-    frec.write(buffer, 512);
-    recByteSaved += 512;                                // Addiert in jedem Durchlauf 512 Bytes
-  }
-}
-
-void stopRecording() {
-  Serial.println("stopRecording");
-  queue1.end();
-  if (mode == 1) {
-    while (queue1.available() > 0) {
-      frec.write((byte*)queue1.readBuffer(), 256);
-      queue1.freeBuffer();
-      recByteSaved += 256;                                        // Addiert die letzten 256 Bytes bei Aufnahme-Stopp
-    }
-  }
-  waveheader.writeWaveHeader(recByteSaved, frec);                 // Schreibt den Wave-Header auf die SD-Karte
-  mode = 0;
-  checkLvl = false;
-  saved = false;
-  TimePassed = 0;
-}
-
-
-void startPlaying() {
-  Serial.println("startPlaying");
-  TimePassed = 0;
-  if (saved == true)
-  {
-    playFile(lastSave);
-    mode = 2;
-    return;
-  }
-  else
-  {
-    playFile(filename);
-    mode = 2;
-    return;
-  }
-
-}
-
-void continuePlaying() {
-  if (!playSdWav1.isPlaying()) {
-    playSdWav1.stop();
-    mode = 0;
-  }
-}
-
-void stopPlaying() {
-  Serial.println("stopPlaying");
-  if (mode == 2) playSdWav1.stop();
-  mode = 0;
-  TimePassed = 0;
-}
-
-void displayRefresh() {
-  if (checkLvl) {
-    displayLvl();
-  }
-}
-
-void displayLvl() {
-  uint32_t ProgBarVal = uint32_t(100 * (1 - (rmsMeter.updateRMS(double(peak1.read())) / -80)));
-  ProgBarLevel.setValue(ProgBarVal);
-  if (AGCOn) {
-    uint32_t gainVal = uint32_t(20*log10(InGain))+12;
-    sliderGain.setValue(gainVal);
-  }
-
-}
-
-void playFile(const char *filename)
-{
-  Serial.print("Playing file: ");
-  Serial.println(filename);
-
-  // Start playing the file.  This sketch continues to
-  // run while the file plays.
-  playSdWav1.play(filename);
-
-  // A brief delay for the library read WAV info
-  delay(5);
-}
-
-void SetRecordingInput() {
-  mixer1.gain(0, 0);
-  mixer1.gain(1, 0);
-  mixer1.gain(2, 0.5);
-  mixer1.gain(3, 0.5);
-}
-
-void SetPlayingInput() {
-  mixer1.gain(0, 0.5);
-  mixer1.gain(1, 0.5);
-  mixer1.gain(2, 0);
-  mixer1.gain(3, 0);
-}
-
-// call back for file timestamps
-void dateTime(uint16_t* date, uint16_t* time) {
-  time_t t = now();
-  //sprintf(timestamp, "%02d:%02d:%02d %2d/%2d/%2d \n", hour(t),minute(t),second(t),month(t),day(t),year(t)-2000);
-  // return date using FAT_DATE macro to format fields
-  *date = FAT_DATE(year(t), month(t), day(t));
-
-  // return time using FAT_TIME macro to format fields
-  *time = FAT_TIME(hour(t), minute(t), second(t));
-}
-
 void updateFileBrowser() {
   textWavFile.setText(CurWav);
   WavFile = SD.open(CurWav);
@@ -687,6 +694,39 @@ void updateFileBrowser() {
   textWavLen.setText(WavLenChar);
 }
 
+//-----------------------------------------------------------------------------------------
+// MIXER SETTINGS FUNCTIONS
+//-----------------------------------------------------------------------------------------
+void SetRecordingInput() {
+  mixerPlay.gain(0, 0);
+  mixerPlay.gain(1, 0);
+  mixerPlay.gain(2, 0.5);
+  mixerPlay.gain(3, 0.5);
+}
+
+void SetPlayingInput() {
+  mixerPlay.gain(0, 0.5);
+  mixerPlay.gain(1, 0.5);
+  mixerPlay.gain(2, 0);
+  mixerPlay.gain(3, 0);
+}
+
+//-----------------------------------------------------------------------------------------
+// DATE FUNCTIONS
+//-----------------------------------------------------------------------------------------
+void dateTime(uint16_t* date, uint16_t* time) {
+  time_t t = now();
+  //sprintf(timestamp, "%02d:%02d:%02d %2d/%2d/%2d \n", hour(t),minute(t),second(t),month(t),day(t),year(t)-2000);
+  // return date using FAT_DATE macro to format fields
+  *date = FAT_DATE(year(t), month(t), day(t));
+
+  // return time using FAT_TIME macro to format fields
+  *time = FAT_TIME(hour(t), minute(t), second(t));
+}
+
+//-----------------------------------------------------------------------------------------
+// FFT FUNCTIONS
+//-----------------------------------------------------------------------------------------
 void UpdateFFTValue() {
   thirdOctValues.updateData(fft, dataVec);
   switch (bandCounter) {
@@ -742,27 +782,31 @@ void UpdateFFTValue() {
   }
   bandCounter += 1;
 
+  for(auto kk = 0U; kk<16;kk++){
+    Serial.print(20*log10(dataVec[kk]));
+    Serial.print(" ");
+  }
+  Serial.println(" ");
 }
 
-/*void AutoGain()
-{
-  if (MilliSec > 2)
-  {
-    peak = peak1.read();
-    double AGCgain = agc.AGC(peak);
-    amp1.gain(AGCgain);
-    MilliSec = 0;
-  }
-}*/
-
-void AGC(){
-  peak = peak1.read();
-  InGain = agc.getAGCGain(peak);
+//-----------------------------------------------------------------------------------------
+// AGC FUNCTIONS
+//-----------------------------------------------------------------------------------------
+/*void useAGC(){
+  InGain = agc.getAGCGain(peak2.read());
   amp1.gain(InGain);
   Serial.println(InGain);
+}*/
+
+void AutoGain() 
+{
+    AGCgain = agc.getAGC(peak2.read());
+    amp1.gain(AGCgain);
 }
 
-// PUSH CALLBACKS
+//-----------------------------------------------------------------------------------------
+// CALLBACK FUNCTIONS
+//-----------------------------------------------------------------------------------------
 void RecordButtonCallback(void *ptr)
 {
   SetRecordingInput();
@@ -872,7 +916,6 @@ void buttonMuteCallback(void *ptr)
   }
 }
 
-//Callbacks fuer FileBrowser
 void buttonPlayWavCallback(void *ptr)
 {
   textWavFile.getText(CurWav, 13);
@@ -895,7 +938,6 @@ void buttonWavUpCallback(void *ptr)
     updateFileBrowser();
   }
 }
-
 
 void buttonWavDownCallback(void *ptr)
 {
@@ -924,7 +966,6 @@ void buttonSpectrumCallback(void *ptr) {
   Serial.println("Spectrum Analyzer");
 }
 
-//Callbacks fuer EQ Kram
 void buttonEQSettingsCallback(void *ptr) {
   EQf0Slider.setValue(uint32_t(f0Gain * 12) + 12);
   EQf1Slider.setValue(uint32_t(f1Gain * 12) + 12);
@@ -1055,7 +1096,30 @@ void EQf4ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(4, f4Gain);
 }
 
-//Callbacks Spectrum
+void buttonInputIntCallback(void *ptr) {
+  mixerRec.gain(0, 0.5);
+  mixerRec.gain(1, 0.5);
+  mixerRec.gain(2, 0);
+  mixerRec.gain(3, 0);
+  Serial.println("Internal");
+}
+
+void buttonInputExtCallback(void *ptr) {
+  mixerRec.gain(0, 0);
+  mixerRec.gain(1, 0);
+  mixerRec.gain(2, 0.5);
+  mixerRec.gain(3, 0.5);
+  Serial.println("External");
+}
+
+void buttonInputLineCallback(void *ptr) {
+  mixerRec.gain(0, 0);
+  mixerRec.gain(1, 0);
+  mixerRec.gain(2, 0.5);
+  mixerRec.gain(3, 0.5);
+  Serial.println("External");
+}
+
 void ApplyAveCallback(void *ptr) {
   uint32_t blockAve = 0;
   AveBlocks.getValue(&blockAve);
@@ -1068,164 +1132,7 @@ void SpecMenuCallback(void *ptr) {
   thirdOctValues.reset(dataVec);
 }
 
-void AGCButtonCallback(void *ptr)
-{
-  Serial.println("AGC Button Press");
-  if (!AGCOn)
-  {
-    AGCOn = true;
-    Serial.println("AGC On");
-  }
-  else
-  {
-    AGCOn = false;
-    Serial.println("AGC Off");
-  }
-}
-
-/*
-void sliderAGChangCallback(void *ptr)
-{
-  uint32_t hangSetting = 0;
-  sliderAGChang.getValue(&hangSetting);
-  if (hangSetting == 1)
-  {
-    AGChangtime = 0;           //Off
-    Serial.println("AGC Hangtime Off");
-  }
-
-  if (hangSetting == 2)
-  {
-    AGChangtime = 250;         //500ms
-    Serial.println("AGC Hangtime 500ms");
-  }
-
-  if (hangSetting == 3)
-  {
-    AGChangtime = 500;         //1000ms
-    Serial.println("AGC Hangtime 1000ms");
-  }
-
-  if (hangSetting == 4)
-  {
-    AGChangtime = 1000;        //2000ms
-    Serial.println("AGC Hangtime 2000ms");
-  }
-}
-
-void sliderAGCslopeIncCallback(void *ptr)
-{
-  uint32_t slopeIncSetting = 0;
-  sliderAGCslopeInc.getValue(&slopeIncSetting);
-  if (slopeIncSetting == 1)
-  {
-    AGCslopeIncrease = 0.05;
-    Serial.println("AGCslopeIncrease = 0.05");
-  }
-
-  if (slopeIncSetting == 2)
-  {
-    AGCslopeIncrease = 0.1;
-    Serial.println("AGCslopeIncrease = 0.1");
-  }
-
-  if (slopeIncSetting == 3)
-  {
-    AGCslopeIncrease = 0.5;
-    Serial.println("AGCslopeIncrease = 0.5");
-  }
-
-  if (slopeIncSetting == 4)
-  {
-    AGCslopeIncrease = 1.0;
-    Serial.println("AGCslopeIncrease = 1");
-  }
-}
-void sliderAGCslopeDecCallback(void *ptr)
-{
-  uint32_t slopeDecSetting = 0;
-  sliderAGCslopeDec.getValue(&slopeDecSetting);
-  if (slopeDecSetting == 1)
-  {
-    AGCslopeDecrease = 0.1;
-    Serial.println("AGCslopeDecrease = 0.1");
-  }
-
-  if (slopeDecSetting == 2)
-  {
-    AGCslopeDecrease = 0.5;
-    Serial.println("AGCslopeDecrease = 0.5");
-  }
-
-  if (slopeDecSetting == 3)
-  {
-    AGCslopeDecrease = 1.0;
-    Serial.println("AGCslopeDecrease = 1.0");
-  }
-
-  if (slopeDecSetting == 4)
-  {
-    AGCslopeDecrease = 2.0;
-    Serial.println("AGCslopeDecrease = 2.0");
-  }
-}
-void sliderAGCtreshCallback(void *ptr)
-{
-  uint32_t treshSetting = 0;
-  sliderAGCtresh.getValue(&treshSetting);
-  double treshSet = (treshSetting + 60);
-  AGCtresh = treshSet / 100;
-  Serial.println("AGCtresh = ");
-  Serial.println(AGCtresh);
-}*/
-
-void sliderSetPointCallback(void *ptr){
-  uint32_t SetPointVal = 0;
-  sliderSetPoint.getValue(&SetPointVal);
-  SetPoint = -20.0 + double(SetPointVal);
-  agc.setSetpoint(SetPoint);
-  Serial.println("SetPoint changed");
-}
-
-void sliderRangeCallback(void *ptr){
-  uint32_t RangeVal = 0;
-  sliderRange.getValue(&RangeVal);
-  Range = double(RangeVal);
-  agc.setRange(Range);
-  Serial.println("Range changed");
-}
-
-void sliderReactCallback(void *ptr){
-  sliderReact.getValue(&ReactVal);
-  if(ReactVal == 1){
-    timeConst = AGC::timeConstants::fast;
-    Serial.println("TimeConst = fast");
-  }
-  if(ReactVal == 2){
-    timeConst = AGC::timeConstants::medium;
-    Serial.println("TimeConst = medium");
-  }
-  if(ReactVal == 3){
-    timeConst = AGC::timeConstants::slow;
-    Serial.println("TimeConst = slow");
-  }
-  if(ReactVal == 4){
-    timeConst = AGC::timeConstants::veryslow;
-    Serial.println("TimeConst = veryslow");
-  }
-  agc.setTimeConst(timeConst);
-  Serial.println("Time const changed");
-}
-
-void sliderRatioCallback(void *ptr){
-  uint32_t RatioVal = 0;
-  sliderRatio.getValue(&RatioVal);
-  Ratio = double(RatioVal);
-  agc.setRatio(Ratio);
-}
-
 void buttonApplyDCallback(void *ptr) {
-  Serial.println("Hello");
   NumDay.getValue(&Day);
   delay(5);
   NumMonth.getValue(&Month);
@@ -1236,7 +1143,6 @@ void buttonApplyDCallback(void *ptr) {
 }
 
 void buttonApplyTCallback(void *ptr) {
-  Serial.println("Hello");
   NumHour.getValue(&hours);
   delay(5);
   NumMin.getValue(&mins);
@@ -1246,9 +1152,125 @@ void buttonApplyTCallback(void *ptr) {
   SdFile::dateTimeCallback(dateTime);
 }
 
-void buttonAGCSetCallback(void *ptr) {
+
+/*void buttonAGCSetCallback(void *ptr) {
   sliderSetPoint.setValue(uint32_t(SetPoint)+20);
   sliderRange.setValue(uint32_t(Range));
   sliderReact.setValue(ReactVal);
   sliderRatio.setValue(uint32_t(Ratio));
+}*/
+
+void AGCButtonCallback(void *ptr)
+{
+  Serial.println("AGC Button Press");
+    if (!AGCOn)
+      {
+      AGCOn = true;                             
+      Serial.println("AGC On");
+      }      
+    else 
+      {
+      AGCOn = true;
+      amp1.gain(1.0); 
+      Serial.println("AGC Off");                 
+      }       
+}
+
+// if Abfragen ins Cpp und keine Magic numbers verwenden
+void sliderAGChangCallback(void *ptr)
+{
+  uint32_t hangSetting = 0;
+  sliderAGChang.getValue(&hangSetting);
+  if (hangSetting == 1)
+  {
+    AGChangtime = 0;           
+    Serial.println("AGC Hangtime Off");
+  }
+
+  if (hangSetting == 2)
+  {
+    AGChangtime = 50;         
+    Serial.println("AGC Hangtime 50");
+  }
+
+  if (hangSetting == 3)
+  {
+    AGChangtime = 100;         
+    Serial.println("AGC Hangtime 100");
+  }
+
+  if (hangSetting == 4)
+  {
+    AGChangtime = 150;       
+    Serial.println("AGC Hangtime 150");
+  }
+  agc.setAGChangtime(AGChangtime);
+}
+
+void sliderAGCslopeIncCallback(void *ptr)
+{
+  uint32_t slopeIncSetting = 0;
+  sliderAGCslopeInc.getValue(&slopeIncSetting);
+  if (slopeIncSetting == 1)
+  {
+    AGCslopeIncrease = 0.02;        
+    Serial.println("AGCslopeIncrease = 0.02");
+  }
+
+  if (slopeIncSetting == 2)
+  {
+    AGCslopeIncrease = 0.05;         
+    Serial.println("AGCslopeIncrease = 0.05");
+  }
+
+  if (slopeIncSetting == 3)
+  {
+    AGCslopeIncrease = 0.1;         
+    Serial.println("AGCslopeIncrease = 0.1");
+  }
+
+  if (slopeIncSetting == 4)
+  {
+    AGCslopeIncrease = 0.25;        
+    Serial.println("AGCslopeIncrease = 0.25");
+  }
+  agc.setAGCslopeInc(AGCslopeIncrease);
+}
+void sliderAGCslopeDecCallback(void *ptr)
+{
+  uint32_t slopeDecSetting = 0;
+  sliderAGCslopeDec.getValue(&slopeDecSetting);
+  if (slopeDecSetting == 1)
+  {
+    AGCslopeDecrease = 0.2;         
+    Serial.println("AGCslopeDecrease = 0.2");
+  }
+
+  if (slopeDecSetting == 2)
+  {
+    AGCslopeDecrease = 0.5;         
+    Serial.println("AGCslopeDecrease = 0.5");
+  }
+
+  if (slopeDecSetting == 3)
+  {
+    AGCslopeDecrease = 1.0;         
+    Serial.println("AGCslopeDecrease = 1.0");
+  }
+
+  if (slopeDecSetting == 4)
+  {
+    AGCslopeDecrease = 1.5;        
+    Serial.println("AGCslopeDecrease = 1.5");
+  }
+  agc.setAGCslopeDec(AGCslopeDecrease);
+}
+void sliderAGCthreshCallback(void *ptr)
+{
+  uint32_t treshSetting = 0;
+  sliderAGCthresh.getValue(&treshSetting);
+  AGCthresh = (double(treshSetting))/100;
+  agc.setAGCthresh(AGCthresh);
+  Serial.println("AGCthresh = ");
+  Serial.println(AGCthresh);
 }
