@@ -1109,89 +1109,20 @@ void sliderAGChangCallback(void *ptr)
 {
   uint32_t hangSetting = 0;
   sliderAGChang.getValue(&hangSetting);
-  if (hangSetting == 1)
-  {
-    AGChangtime = 0;           
-    Serial.println("AGC Hangtime Off");
-  }
-
-  if (hangSetting == 2)
-  {
-    AGChangtime = 50;         
-    Serial.println("AGC Hangtime 50");
-  }
-
-  if (hangSetting == 3)
-  {
-    AGChangtime = 100;         
-    Serial.println("AGC Hangtime 100");
-  }
-
-  if (hangSetting == 4)
-  {
-    AGChangtime = 150;       
-    Serial.println("AGC Hangtime 150");
-  }
-  agc.setAGChangtime(AGChangtime);
+  agc.setAGChangtime(hangSetting);
 }
 
 void sliderAGCslopeIncCallback(void *ptr)
 {
   uint32_t slopeIncSetting = 0;
   sliderAGCslopeInc.getValue(&slopeIncSetting);
-  if (slopeIncSetting == 1)
-  {
-    AGCslopeIncrease = 0.02;        
-    Serial.println("AGCslopeIncrease = 0.02");
-  }
-
-  if (slopeIncSetting == 2)
-  {
-    AGCslopeIncrease = 0.05;         
-    Serial.println("AGCslopeIncrease = 0.05");
-  }
-
-  if (slopeIncSetting == 3)
-  {
-    AGCslopeIncrease = 0.1;         
-    Serial.println("AGCslopeIncrease = 0.1");
-  }
-
-  if (slopeIncSetting == 4)
-  {
-    AGCslopeIncrease = 0.25;        
-    Serial.println("AGCslopeIncrease = 0.25");
-  }
-  agc.setAGCslopeInc(AGCslopeIncrease);
+  agc.setAGCslopeInc(slopeIncSetting);
 }
 void sliderAGCslopeDecCallback(void *ptr)
 {
   uint32_t slopeDecSetting = 0;
   sliderAGCslopeDec.getValue(&slopeDecSetting);
-  if (slopeDecSetting == 1)
-  {
-    AGCslopeDecrease = 0.2;         
-    Serial.println("AGCslopeDecrease = 0.2");
-  }
-
-  if (slopeDecSetting == 2)
-  {
-    AGCslopeDecrease = 0.5;         
-    Serial.println("AGCslopeDecrease = 0.5");
-  }
-
-  if (slopeDecSetting == 3)
-  {
-    AGCslopeDecrease = 1.0;         
-    Serial.println("AGCslopeDecrease = 1.0");
-  }
-
-  if (slopeDecSetting == 4)
-  {
-    AGCslopeDecrease = 1.5;        
-    Serial.println("AGCslopeDecrease = 1.5");
-  }
-  agc.setAGCslopeDec(AGCslopeDecrease);
+  agc.setAGCslopeDec(slopeDecSetting);
 }
 void sliderAGCtreshCallback(void *ptr)
 {
@@ -1199,6 +1130,4 @@ void sliderAGCtreshCallback(void *ptr)
   sliderAGCtresh.getValue(&treshSetting);
   AGCtresh = (double(treshSetting)+10)/100;
   agc.setAGCthresh(AGCtresh);
-  Serial.println("AGCtresh = ");
-  Serial.println(AGCtresh);
 }
