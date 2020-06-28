@@ -27,6 +27,8 @@
 #include <TimeLib.h>
 #include <DS1307RTC.h>
 
+#include <SoftwareSerial.h>
+
 // own Files
 #include <RMSLevel.h>
 #include <WaveHeader.h>
@@ -113,6 +115,7 @@ NexButton buttonRecorder = NexButton(1, 3, "Recorder");
 NexButton buttonPlayer = NexButton(1, 2, "FileBrowser");
 NexButton buttonSpectrum = NexButton(1, 7, "Spectrum");
 NexButton buttonAGCSet = NexButton(1, 6, "AGCSettings");
+NexButton buttonRecSet = NexButton(1, 5, "RecSettings");
 
 // recorder settings
 NexButton buttonEQSettings = NexButton(3, 8, "EQSettings");
@@ -166,7 +169,7 @@ NexButton SpecMenu = NexButton(6, 19, "Menu");
 
 // agc
 NexButton buttonAGC = NexButton(0, 16, "AGC");
-NexSlider sliderAGChang = NexSlider(4, 6, "AGCChang");
+NexSlider sliderAGCChang = NexSlider(4, 6, "AGCChang");
 NexSlider sliderAGCslopeInc = NexSlider(4, 7, "AGCslopeInc");
 NexSlider sliderAGCslopeDec = NexSlider(4, 8, "AGCslopeDec");
 NexSlider sliderAGCthresh = NexSlider(4, 28, "AGCthresh");
@@ -208,6 +211,7 @@ NexTouch *nex_listen_list[] =
   &buttonInputExt,
   &buttonInputLine,
   &buttonAGCSet,
+  &buttonRecSet,
   &EQf0Slider,
   &EQf0ButP,
   &EQf0ButM,
@@ -226,7 +230,7 @@ NexTouch *nex_listen_list[] =
   &ApplyAve,
   &SpecMenu,
   &buttonAGC,
-  &sliderAGChang,
+  &sliderAGCChang,
   &sliderAGCslopeInc,
   &sliderAGCslopeDec,
   &sliderAGCthresh,
@@ -245,7 +249,7 @@ int myInput = AUDIO_INPUT_LINEIN;
 #define SDCARD_SCK_PIN   13
 
 int mode = 0;  // 0=stopped, 1=recording, 2=playing
-int switchMode = 0;               // 0 = internes Mikrofon, 1 = externes 
+int InputMode = 0;               // 0 = internes Mikrofon, 1 = externes , 2 = line-in
 double InGain = 1.0;
 double HpVol = 0.5; //Headphone Volume
 bool muted = false;
@@ -290,7 +294,7 @@ unsigned long recByteSaved = 0L;
 // RMS-METER
 //-----------------------------------------------------------------------------------------
 double tau = 0.125;
-double f_refresh = 4;
+double f_refresh = 8;
 RMSLevel rmsMeter(tau, f_refresh);
 bool checkLvl = false;
 unsigned int dispDelay = 1000 / f_refresh;
@@ -299,13 +303,16 @@ unsigned int dispDelay = 1000 / f_refresh;
 // AUTOMATIC GAIN CONTROL
 //-----------------------------------------------------------------------------------------
 AutomaticGainControl agc;
-bool AGCOn = false; 
-int AGChangtime;               
-double AGCthresh;             
-double AGCslopeIncrease;         
-double AGCslopeDecrease;      
+bool AGCOn = false;      
 double peak; 
 double AGCgain;
+double AGCthresh;
+
+uint32_t hangSetting = 3;
+uint32_t slopeIncSetting = 2;
+uint32_t slopeDecSetting = 2;
+uint32_t threshSetting = 90;
+
 
 //-----------------------------------------------------------------------------------------
 // RUNNING TIME LABEL
@@ -357,6 +364,7 @@ void setup() {
   Serial1.end();
 
   Serial1.begin(115200);
+  
 
   AudioMemory(256);
 
@@ -364,6 +372,7 @@ void setup() {
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(HpVol);
   sgtl5000_1.audioPreProcessorEnable();
+  sgtl5000_1.adcHighPassFilterDisable();
   sgtl5000_1.eqSelect(3);
 
   amp1.gain(InGain);
@@ -428,8 +437,8 @@ void setup() {
   buttonInputLine.attachPush(buttonInputLineCallback);
   buttonPlayer.attachPush(buttonPlayerCallback);
   buttonSpectrum.attachPush(buttonSpectrumCallback);
-  //diese Callback funktion muss angepasst werden
-  //buttonAGCSet.attachPush(buttonAGCSetCallback);
+  buttonAGCSet.attachPush(buttonAGCSetCallback);
+  buttonRecSet.attachPush(buttonRecSetCallback);
   EQf0Slider.attachPop(EQf0SliderCallback);
   EQf0ButP.attachPush(EQf0ButPCallback);
   EQf0ButM.attachPush(EQf0ButMCallback);
@@ -448,7 +457,7 @@ void setup() {
   ApplyAve.attachPush(ApplyAveCallback);
   SpecMenu.attachPush(SpecMenuCallback);
   buttonAGC.attachPush(AGCButtonCallback);
-  sliderAGChang.attachPop(sliderAGChangCallback);
+  sliderAGCChang.attachPop(sliderAGCChangCallback);
   sliderAGCslopeInc.attachPop(sliderAGCslopeIncCallback);
   sliderAGCslopeDec.attachPop(sliderAGCslopeDecCallback);
   sliderAGCthresh.attachPush(sliderAGCthreshCallback);
@@ -782,12 +791,6 @@ void UpdateFFTValue() {
 //-----------------------------------------------------------------------------------------
 // AGC FUNCTIONS
 //-----------------------------------------------------------------------------------------
-/*void useAGC(){
-  InGain = agc.getAGCGain(peak2.read());
-  amp1.gain(InGain);
-  Serial.println(InGain);
-}*/
-
 void AutoGain() 
 {
     AGCgain = agc.getAGC(peak2.read());
@@ -1091,11 +1094,15 @@ void EQf4ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(4, f4Gain);
 }
 
+
+
 void buttonInputIntCallback(void *ptr) {
   mixerRec.gain(0, 0.5);
   mixerRec.gain(1, 0.5);
   mixerRec.gain(2, 0);
   mixerRec.gain(3, 0);
+
+  InputMode = 0;
   Serial.println("Internal");
 }
 
@@ -1104,6 +1111,8 @@ void buttonInputExtCallback(void *ptr) {
   mixerRec.gain(1, 0);
   mixerRec.gain(2, 0.5);
   mixerRec.gain(3, 0.5);
+
+  InputMode = 1;
   Serial.println("External");
 }
 
@@ -1112,6 +1121,8 @@ void buttonInputLineCallback(void *ptr) {
   mixerRec.gain(1, 0);
   mixerRec.gain(2, 0.5);
   mixerRec.gain(3, 0.5);
+
+  InputMode = 2;
   Serial.println("External");
 }
 
@@ -1153,13 +1164,30 @@ void buttonApplyTCallback(void *ptr) {
   SdFile::dateTimeCallback(dateTime);
 }
 
+void buttonRecSetCallback(void *ptr) {
+  if (InputMode == 0) {
+    buttonInputInt.setValue(1);
+    buttonInputExt.setValue(0);
+    buttonInputLine.setValue(0);
+  }
+  if (InputMode == 1) {
+    buttonInputInt.setValue(0);
+    buttonInputExt.setValue(1);
+    buttonInputLine.setValue(0);
+  }
+  if (InputMode == 2) {
+    buttonInputInt.setValue(0);
+    buttonInputExt.setValue(0);
+    buttonInputLine.setValue(1);
+  }
+}
 
-/*void buttonAGCSetCallback(void *ptr) {
-  sliderSetPoint.setValue(uint32_t(SetPoint)+20);
-  sliderRange.setValue(uint32_t(Range));
-  sliderReact.setValue(ReactVal);
-  sliderRatio.setValue(uint32_t(Ratio));
-}*/
+void buttonAGCSetCallback(void *ptr) {
+  sliderAGCChang.setValue(hangSetting);
+  sliderAGCslopeInc.setValue(slopeIncSetting);
+  sliderAGCslopeDec.setValue(slopeDecSetting);
+  sliderAGCthresh.setValue(threshSetting);
+}
 
 void AGCButtonCallback(void *ptr)
 {
@@ -1171,107 +1199,32 @@ void AGCButtonCallback(void *ptr)
       }      
     else 
       {
-      AGCOn = true;
-      amp1.gain(1.0); 
+      AGCOn = false;
+      amp1.gain(1.0);
+      sliderGain.setValue(12); 
       Serial.println("AGC Off");                 
       }       
 }
 
-// if Abfragen ins Cpp und keine Magic numbers verwenden
-void sliderAGChangCallback(void *ptr)
+void sliderAGCChangCallback(void *ptr)
 {
-  uint32_t hangSetting = 0;
-  sliderAGChang.getValue(&hangSetting);
-  if (hangSetting == 1)
-  {
-    AGChangtime = 0;           
-    Serial.println("AGC Hangtime Off");
-  }
-
-  if (hangSetting == 2)
-  {
-    AGChangtime = 50;         
-    Serial.println("AGC Hangtime 50");
-  }
-
-  if (hangSetting == 3)
-  {
-    AGChangtime = 100;         
-    Serial.println("AGC Hangtime 100");
-  }
-
-  if (hangSetting == 4)
-  {
-    AGChangtime = 150;       
-    Serial.println("AGC Hangtime 150");
-  }
-  agc.setAGChangtime(AGChangtime);
+  sliderAGCChang.getValue(&hangSetting);
+  agc.setAGChangtime(hangSetting);
 }
 
 void sliderAGCslopeIncCallback(void *ptr)
 {
-  uint32_t slopeIncSetting = 0;
   sliderAGCslopeInc.getValue(&slopeIncSetting);
-  if (slopeIncSetting == 1)
-  {
-    AGCslopeIncrease = 0.02;        
-    Serial.println("AGCslopeIncrease = 0.02");
-  }
-
-  if (slopeIncSetting == 2)
-  {
-    AGCslopeIncrease = 0.05;         
-    Serial.println("AGCslopeIncrease = 0.05");
-  }
-
-  if (slopeIncSetting == 3)
-  {
-    AGCslopeIncrease = 0.1;         
-    Serial.println("AGCslopeIncrease = 0.1");
-  }
-
-  if (slopeIncSetting == 4)
-  {
-    AGCslopeIncrease = 0.25;        
-    Serial.println("AGCslopeIncrease = 0.25");
-  }
-  agc.setAGCslopeInc(AGCslopeIncrease);
+  agc.setAGCslopeInc(slopeIncSetting);
 }
 void sliderAGCslopeDecCallback(void *ptr)
 {
-  uint32_t slopeDecSetting = 0;
   sliderAGCslopeDec.getValue(&slopeDecSetting);
-  if (slopeDecSetting == 1)
-  {
-    AGCslopeDecrease = 0.2;         
-    Serial.println("AGCslopeDecrease = 0.2");
-  }
-
-  if (slopeDecSetting == 2)
-  {
-    AGCslopeDecrease = 0.5;         
-    Serial.println("AGCslopeDecrease = 0.5");
-  }
-
-  if (slopeDecSetting == 3)
-  {
-    AGCslopeDecrease = 1.0;         
-    Serial.println("AGCslopeDecrease = 1.0");
-  }
-
-  if (slopeDecSetting == 4)
-  {
-    AGCslopeDecrease = 1.5;        
-    Serial.println("AGCslopeDecrease = 1.5");
-  }
-  agc.setAGCslopeDec(AGCslopeDecrease);
+  agc.setAGCslopeDec(slopeDecSetting);
 }
 void sliderAGCthreshCallback(void *ptr)
 {
-  uint32_t treshSetting = 0;
-  sliderAGCthresh.getValue(&treshSetting);
-  AGCthresh = (double(treshSetting))/100;
+  sliderAGCthresh.getValue(&threshSetting);
+  AGCthresh = (double(threshSetting)+10)/100;
   agc.setAGCthresh(AGCthresh);
-  Serial.println("AGCthresh = ");
-  Serial.println(AGCthresh);
 }
