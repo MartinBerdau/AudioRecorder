@@ -1,36 +1,29 @@
 #include "AutomaticGainControl.h"
+#include "math.h"
 
-#define AGCMAX 63
-#define AGCMIN 40
+#define AGCMAX 12
+#define AGCMIN -12
 
-AutomaticGainControl::AutomaticGainControl(int AGChangtime, double AGCtresh, double AGCslopeIncrease, double AGCslopeDecrease, double peak)
-    : m_gainReduceChecker(),
-    m_gainReduceCounter(),
-    m_agcAttack(1)    
+AutomaticGainControl::AutomaticGainControl()
 {
-    m_agcHangtime = AGChangtime;
-    m_agcThresh = AGCtresh;
-    m_agcSlopeIncrease = AGCslopeIncrease;
-    m_agcSlopeDecrease = AGCslopeDecrease;
-    m_peak = peak;
+    m_agcAmpOut = 0;
+    m_hangtimer = 0;
+    m_agcGainOut = 0;
+    m_agcGain = 0;
+    m_agcHangtime = 100;
+    m_agcSlopeIncrease = 0.05;
+    m_agcSlopeDecrease = 0.5;
+    m_agcThresh = 0.9;
 }
 
-double AutomaticGainControl::AGC(double AGCvalue)
+double AutomaticGainControl::getAGC(double peak)
 {
-    static int m_hangtimer;
-    static double m_agcGain = 40;
-    static double m_agcGainOut;
 
-    // Check if signal is too loud
-    for (m_gainReduceCounter = 0, m_gainReduceChecker = 0; m_gainReduceCounter < m_agcAttack; m_gainReduceCounter++)
-    {
-        if (m_peak > m_agcThresh) m_gainReduceChecker++;
-    }
-   
+    m_peak = peak;
     // Gain Decrease
-    if ((m_gainReduceChecker == m_agcAttack) || ((m_gainReduceChecker > 0) && (m_hangtimer >= m_agcHangtime)))
+    if (m_peak > m_agcThresh)
     {
-        m_agcGainOut = (m_agcGain - m_agcSlopeDecrease);
+        m_agcGainOut = m_agcGain - m_agcSlopeDecrease;
 
         // Reduce limit 
         if (m_agcGainOut <= AGCMIN) m_agcGainOut = AGCMIN;
@@ -57,6 +50,57 @@ double AutomaticGainControl::AGC(double AGCvalue)
 
         m_agcGain = m_agcGainOut;
     }
-    return m_agcGainOut;
+    m_agcAmpOut = pow(10, m_agcGainOut / 20);
+    return m_agcAmpOut;
 }
+
+void AutomaticGainControl::setAGChangtime(int hangSetting)
+{
+    m_hangSetting = hangSetting;
+    if (m_hangSetting == 1)
+        m_agcHangtime = 0;
+
+    if (m_hangSetting == 2)
+        m_agcHangtime = 50;
+
+    if (m_hangSetting == 3)
+        m_agcHangtime = 100;
+
+    if (m_hangSetting == 4)
+        m_agcHangtime = 150;
+}
+
+
+void AutomaticGainControl::setAGCslopeInc(double slopeIncSetting)
+{
+    m_slopeIncSetting = slopeIncSetting;
+    if (m_slopeIncSetting == 1)
+        m_agcSlopeIncrease = 0.02;
+
+    if (m_slopeIncSetting == 2)
+        m_agcSlopeIncrease = 0.05;
+
+    if (m_slopeIncSetting == 3)
+        m_agcSlopeIncrease = 0.1;
+
+    if (m_slopeIncSetting == 4)
+        m_agcSlopeIncrease = 0.25;
+}
+
+void AutomaticGainControl::setAGCslopeDec(double slopeDecSetting)
+{
+    m_slopeDecSetting = slopeDecSetting;
+    if (m_slopeDecSetting == 1)
+        m_agcSlopeDecrease = 0.2;
+
+    if (m_slopeDecSetting == 2)
+        m_agcSlopeDecrease = 0.5;
+
+    if (m_slopeDecSetting == 3)
+        m_agcSlopeDecrease = 1.0;
+
+    if (m_slopeDecSetting == 4)
+        m_agcSlopeDecrease = 1.5;
+}
+
 
