@@ -1,25 +1,38 @@
 # AudioRecorder
+Diese Seite enthält Code, um ein Aufnahmegerät mit einem Teensy + Audio Shield zu bauen.
 
-## Verwendete Komponenten:
+## Hardware
+Im folgenden wird die verwendete Hardware aufgelistet. Hierbei handelt es sich um die verwendeten und empfohlenen Komponenten.
+
 - Teensy 4.0
 - Teensy Audio Shield
 - Nextion Basic Series
-- 2 SD-Karten (1x für Nextion-Display, 1x für Teensy [FAT32, SDHC-Karte])
+- 2 microSD-Karten: 1x für Nextion-Display,  1x für Teensy (FAT32, maximal 32 GB)
+- XLR/Line-Kombi-Buchse
+- MAX4466 mit Elektret-Mikrofon
+- 100μF Kondensator
+- Knopfzelle mit Halterung
+- LiPo-Akku (3,7 V)
+- Lademodul
+- Wippschalter
+- Kabel (am besten geschirmt)
+- Gehäuse (+Schrauben)
 
-## MyLibrary installieren:
-MyLibrary muss in Teensyduino unter "Sketch/Bibliothek einbinden/.ZIP-Bibliothek hinzufügen..." ausgewählt werden.
-Zuvor sollte dieser Ordner daher in den vorgesehenen library-Ordner kopiert werden. Falls neue Files zu MyLibrary hinzugefügt wurde, muss MyLibrary im vorgesehenen library-Ordner durch die neue Version ersetzt werden.
+## Software
+Um das Programm auf den Teensy zu laden wird die Software Teensyduino benötigt. Diese kann vom [Teensy-Hersteller](https://www.pjrc.com/teensy/teensyduino.html) runtergeladen werden. Dadurch ist automatisch die [Audio-Library](https://github.com/PaulStoffregen/Audio) installiert, welche für das Programm benötigt wird.
+Für die Kommunikation zwischen Teensy und Nextion wird die [ITEADLIB_Arduino_Nextion-Library](https://github.com/itead/ITEADLIB_Arduino_Nextion) verwendet. Diese wurde für das Aufnahmegerät geringfügig verändert, weshalb der veränderte Code ebenfalls hier runterzuladen ist.
+Des Weiteren wird die AudioRecorderLibrary benötigt, welche Code enthält, welcher lediglich aus dem Hauptprogramm ausgegliedert wurde.
 
-## Nextion-Library installieren:
-Link zum Runterladen:
-https://github.com/itead/ITEADLIB_Arduino_Nextion
+## Installation
+Der Aufbau der Hardware kann dem Manual entnommen werden.
 
-Je nachdem, wie die Komponenten verlötet wurden, muss in der Nextion-Library in NexConfig.h in Zeile 37 der zu verwendende Serial eingetragen werden (z.B. #define nexSerial Serial1     keinen Serial wählen, der bereits verwendet wird!).
+Um die [ITEADLIB_Arduino_Nextion-Library](https://github.com/itead/ITEADLIB_Arduino_Nextion) und die AudioRecorderLibrary einzubauen, müssen diese in den library-Ordner verschoben werden. Üblicherweise wird dieser hier installiert:
+```
+Dokumente/Arduino/libraries
+```
+Um die GUI zu installieren muss das File *DisplayRecorder.tft* aus dem Display-Ordner auf die für das Display bestimmte microSD-Karte geladen und in das Nextion-Display eingesetzt werden.
 
-## Ausführung:
-Die tft-File muss auf die SD-Karte für das Nextion geladen werden.
-Alternativ kann der Code für das Nextion-Display im Nextion-Editor in ein tft-File umgewandelt werden, welche im Anschluss auf die SD-Karte kopiert werden kann.
-Der ino-Code muss auf den Teensy geladen werden. Das Display muss vor dem Teensy angeschaltet werden, ansonsten funktioniert die Kommunikation möglicherweise nicht
+Das Hauptprogramm *RecorderNextion.ino* im gleichnamigen Ordner kann nun mit Teensyduino auf den Teensy hochgeladen werden.
 
-## Notes
-Branch von Hannes im Moment noch auf seinem Account: https://github.com/HannesSauerbaum/AudioRecorder/tree/branchHannes
+## Lizenz
+Der Code ist durch die [MIT-Lizenz](https://opensource.org/licenses/MIT) lizensiert.
