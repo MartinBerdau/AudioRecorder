@@ -1,5 +1,5 @@
 # AudioRecorder
-Diese Seite enthält Code, um ein Aufnahmegerät mit einem Teensy + Audio Shield zu bauen.
+Diese Seite enthält Code, um ein Aufnahmegerät mit einem Teensy (+Audio Shield) und einem Nextion-Display zu bauen.
 
 ## Hardware
 Im folgenden wird die verwendete Hardware aufgelistet. Hierbei handelt es sich um die verwendeten und empfohlenen Komponenten.
