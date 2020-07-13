@@ -24,26 +24,6 @@ as well as functions to comunicate with the Nextion Display.
 This code ist based on the Recorder-Example from the Audio-library.>
 */
 
-
-// QUELLE: TIMESTAMP: https://forum.arduino.cc/index.php?topic=348562.0
-//
-// Editiertes Beispiel-File.
-// Die Eingaben sollen ueber ein Nextion-Display gemacht werden.
-// Es wird zum Ausfuehren noch die Nextion-Library benoetigt.
-// Es werden 3 Knöpfe auf dem Nextion erstellt und die Funktionen
-// durch Callbacks (ganz untern zu finden) aufgerufen.
-// Neben dem Beispielprojekt wurde das folgende Video verwendet:
-// https://www.youtube.com/watch?v=mdkUBB60HoI
-//
-// Record sound as raw data to a SD card, and play it back.
-//
-// Requires the audio shield:
-//   http://www.pjrc.com/store/teensy3_audio.html
-// For Saving stuff the listfiles eample was used
-//
-// This example code is in the public domain.
-
-
 #include <Bounce.h>
 #include <Audio.h>
 #include <Wire.h>
@@ -478,7 +458,8 @@ void setup() {
   buttonApplyT.attachPush(buttonApplyTCallback);
   
   //set global time to initial values
-  setTime(hours, mins, secs, Day, Month, Year);
+  int t = getTeensy4Time() + 60*60; //plus 1 hour to set the correct time
+  setTime(t);
   SdFile::dateTimeCallback(dateTime);
 }
 
@@ -644,16 +625,18 @@ void displayRefresh() {
   }
 }
 
-
+//function to display the levelmeter by setting a progressbar to the measured value
 void displayLvl() {
-  uint32_t ProgBarVal = uint32_t(100 * (1 - (rmsMeter.updateRMS(double(peak1.read())) / -80)));
-  ProgBarLevel.setValue(ProgBarVal);
+  uint32_t ProgBarVal = uint32_t(100 * (1 - (rmsMeter.updateRMS(double(peak1.read())) / -80))); //compute the value and normalize it to -80 to 0 dB FS
+  ProgBarLevel.setValue(ProgBarVal); //set it to the progressbar
+  //if on update the gain slider from the agc
   if (AGCOn) {
     uint32_t gainVal = uint32_t(20*log10(InGain))+12;
     sliderGain.setValue(gainVal);
   }
 }
 
+//function to update the infos about the available memory and current file
 void updateMemoryDisp() {
   filebrowser.computeAvailableMemory(MemoryDisp, SDSize, usedMemory, availableMemory_byte, availableTime_sec);
   textFile.setText(filename);
@@ -663,6 +646,9 @@ void updateMemoryDisp() {
 //-----------------------------------------------------------------------------------------
 // FILE BROWSER FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//functions use the file browser and to display infos about the current file
+
+//function to check witch files exist on SD Card and which is the next records name
 void checkCurrentFile()
 {
   while (fileCount >= 0)
@@ -678,25 +664,27 @@ void checkCurrentFile()
   }
 }
 
+//function to save the current file by creating a new filename
 void saveCurrentFile() {
   if (recByteSaved > 0) {
-    strcpy(lastSave, filename);
-    fileCount += 1;
-    filebrowser.computeCurName(filename, 1);
-    usedMemory += recByteSaved + 36;
-    updateMemoryDisp();
-    recByteSaved = 0;
-    saved = true;
+    strcpy(lastSave, filename); //copy the file name
+    fileCount += 1; //add one to count up the files
+    filebrowser.computeCurName(filename, 1); //compute new name
+    usedMemory += recByteSaved + 36; //compute used memory
+    updateMemoryDisp(); //update display
+    recByteSaved = 0; //reset recByteSaved
+    saved = true; //set the bool to true, so the last file will be played
   }
 
 }
 
+//function to compute used memory, based on Example from Arduino IDE: Examples/SD/Cardinfo
 void computeUsedMemory(File dir) {
   while (true) {
     File entry = dir.openNextFile();
     usedMemory += entry.size();
     if (!entry) {
-      usedMemory -= 8192;
+      usedMemory -= 8192; //delete on Cluster, because it's empty but was opened
       break;
     }
     entry.close();
@@ -704,19 +692,23 @@ void computeUsedMemory(File dir) {
   updateMemoryDisp();
 }
 
+//function to update the infos of one file in the file browser screen
 void updateFileBrowser() {
-  textWavFile.setText(CurWav);
-  WavFile = SD.open(CurWav);
-  unsigned long WavSize = WavFile.size();
-  filebrowser.computeFileSizeChar(WavSizeChar, WavSize);
-  filebrowser.computeFileLenChar(WavLenChar, WavSize);
-  textWavSize.setText(WavSizeChar);
-  textWavLen.setText(WavLenChar);
+  textWavFile.setText(CurWav); //set the name
+  WavFile = SD.open(CurWav); //open the file
+  unsigned long WavSize = WavFile.size(); //get the size of the file
+  filebrowser.computeFileSizeChar(WavSizeChar, WavSize); //compute the size char array
+  filebrowser.computeFileLenChar(WavLenChar, WavSize); //compute the length char array
+  textWavSize.setText(WavSizeChar); //display the size
+  textWavLen.setText(WavLenChar); //display the length
 }
 
 //-----------------------------------------------------------------------------------------
 // MIXER SETTINGS FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//functions to set the correct output, so you don't hear input and playback at the same time
+
+//function to enable the input and silence the playback
 void SetRecordingInput() {
   mixer1.gain(0, 0);
   mixer1.gain(1, 0);
@@ -724,6 +716,7 @@ void SetRecordingInput() {
   mixer1.gain(3, 0.5);
 }
 
+//function to enable the playback and silence the input
 void SetPlayingInput() {
   mixer1.gain(0, 0.5);
   mixer1.gain(1, 0.5);
@@ -734,18 +727,26 @@ void SetPlayingInput() {
 //-----------------------------------------------------------------------------------------
 // DATE FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//function to get the correct date and time and set it in FAT32 format to the SD Card
+//Source: https://forum.arduino.cc/index.php?topic=348562.0
 void dateTime(uint16_t* date, uint16_t* time) {
-  time_t t = now();
-  // return date using FAT_DATE macro to format fields
-  *date = FAT_DATE(year(t), month(t), day(t));
+  time_t t = now(); //get the current system time
+  
+  *date = FAT_DATE(year(t), month(t), day(t)); // return date using FAT_DATE macro to format fields
+  *time = FAT_TIME(hour(t), minute(t), second(t)); // return time using FAT_TIME macro to format fields
+}
 
-  // return time using FAT_TIME macro to format fields
-  *time = FAT_TIME(hour(t), minute(t), second(t));
+//function to get the current time
+time_t getTeensy4Time()
+{
+  return Teensy3Clock.get();
 }
 
 //-----------------------------------------------------------------------------------------
-// FFT FUNCTIONS
+// SPECTRUM ANALYZER FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//function to update the Spectrum Analyzer and display it by progress bar (0 - -80 dB FS)
+//each frequency bin is called seperatly to not overload the Nextion Display
 void UpdateFFTValue() {
   thirdOctValues.updateData(fft, dataVec);
   switch (bandCounter) {
@@ -805,15 +806,18 @@ void UpdateFFTValue() {
 //-----------------------------------------------------------------------------------------
 // AGC FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//function to update the automatic gain control
 void useAGC(){
   InGain = agc.getAGCGain(peak2.read());
   amp1.gain(InGain);
-  Serial.println(InGain);
 }
 
 //-----------------------------------------------------------------------------------------
 // CALLBACK FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//every Nextion Item has to be linked to a callback function to understand its command
+
+//callback to the record button
 void RecordButtonCallback(void *ptr)
 {
   SetRecordingInput();
@@ -831,6 +835,7 @@ void RecordButtonCallback(void *ptr)
   }
 }
 
+//callback to the stop button
 void StopButtonCallback(void *ptr)
 {
   Serial.println("Stop Button Press");
@@ -848,6 +853,7 @@ void StopButtonCallback(void *ptr)
   checkLvl = false;
 }
 
+//callback to the play button
 void PlayButtonCallback(void *ptr)
 {
   SetPlayingInput();
@@ -864,12 +870,14 @@ void PlayButtonCallback(void *ptr)
   }
 }
 
+//callback to the save button
 void SaveButtonCallback(void *ptr)
 {
   Serial.println("Save Button Press");
   saveCurrentFile();
 }
 
+//callback to the pre button to check the level
 void buttonCheckLvlCallback(void *ptr)
 {
   if (!checkLvl)
@@ -886,76 +894,89 @@ void buttonCheckLvlCallback(void *ptr)
 
 }
 
+//callback to the gain slider
 void sliderGainCallback(void *ptr)
 {
   uint32_t Gain = 0;
-  sliderGain.getValue(&Gain);
-  double Gain_d = double(Gain) - 12;
-  InGain = pow(10.0, Gain_d / 20.0);
-  amp1.gain(InGain);
+  sliderGain.getValue(&Gain); //get the slider position
+  double Gain_d = double(Gain) - 12; //convert it to -12 dB to 12 dB as a double
+  InGain = pow(10.0, Gain_d / 20.0); //compute the linear gain
+  amp1.gain(InGain); //set the gain to amplifier
 }
 
+//callback to Volume up, increases the Headphone volume by 0.5
 void buttonVolUpCallback(void *ptr)
 {
+  //ceck if volume is at maximum
   if (HpVol < 1.0) {
     HpVol += 0.05;
-    sgtl5000_1.volume(HpVol);
+    sgtl5000_1.volume(HpVol); //set volume
   }
 }
 
+//callback to Volume down, decreases the Headphone volume by 0.5
 void buttonVolDownCallback(void *ptr)
 {
+  //ceck if volume is at minimum
   if (HpVol > 0.0) {
     HpVol -= 0.05;
-    sgtl5000_1.volume(HpVol);
+    sgtl5000_1.volume(HpVol); //set volume
   }
 }
 
+//callback to mute button
 void buttonMuteCallback(void *ptr)
 {
+  //check if output is muted
   if (!muted) {
-    sgtl5000_1.volume(0.0);
+    sgtl5000_1.volume(0.0); //set volume to 0.0
     muted = true;
   }
   else {
-    sgtl5000_1.volume(HpVol);
+    sgtl5000_1.volume(HpVol); //reset volume to last value
     muted = false;
   }
 }
 
-//Callbacks fuer FileBrowser
+//Callbacks for File Browser
+//callback to play button in file browser
 void buttonPlayWavCallback(void *ptr)
 {
-  textWavFile.getText(CurWav, 13);
-  playFile(CurWav);
+  textWavFile.getText(CurWav, 13); //get the current filename
+  playFile(CurWav); //play the current file
   Serial.println(CurWav);
 }
 
+//callback to stop button in file browser
 void buttonStopWavCallback(void *ptr)
 {
-  playSdWav1.stop();
+  playSdWav1.stop(); //stop the playback
 }
 
+//callback to go one file up
 void buttonWavUpCallback(void *ptr)
 {
   if (WavCount < (fileCount - 1))
   {
-    textWavFile.getText(CurWav, 12);
-    filebrowser.computeCurName(CurWav, 1);
-    WavCount++;
-    updateFileBrowser();
+    textWavFile.getText(CurWav, 12); //get the current filename
+    filebrowser.computeCurName(CurWav, 1); //compute new name
+    WavCount++; //count all files
+    updateFileBrowser(); //display new informations
   }
 }
 
-
+//callback to go one file down
 void buttonWavDownCallback(void *ptr)
 {
-  textWavFile.getText(CurWav, 13);
-  filebrowser.computeCurName(CurWav, 0);
-  WavCount--;
-  updateFileBrowser();
+  textWavFile.getText(CurWav, 13); //get the current filename
+  filebrowser.computeCurName(CurWav, 0); //compute new name
+  WavCount--; //count all files
+  updateFileBrowser(); //display new informations
 }
 
+//Menu Callbacks
+
+//callback to recorder button in menu to get back to recorder
 void buttonRecorderCallback(void *ptr)
 {
   Serial.println("Recorder");
@@ -963,19 +984,24 @@ void buttonRecorderCallback(void *ptr)
   updateMemoryDisp();
 }
 
+//callback to player button in menu to get to file browser
 void buttonPlayerCallback(void *ptr)
 {
   Serial.println("FileBrowser");
   SetPlayingInput();
 }
 
+//callback to spectrum analyzer button in menu to get to spectrum analyzer
 void buttonSpectrumCallback(void *ptr) {
   analyzeActiv = true;
   TimerFFT = 0;
   Serial.println("Spectrum Analyzer");
 }
 
-//Callbacks fuer EQ Kram
+//Callbacks for equalizer
+
+//callback to the EQ button in settings to get to the equalizer
+//sets all sliders at the correct position and sets the value in the field
 void buttonEQSettingsCallback(void *ptr) {
   EQf0Slider.setValue(uint32_t(f0Gain * 12) + 12);
   EQf1Slider.setValue(uint32_t(f1Gain * 12) + 12);
@@ -990,6 +1016,7 @@ void buttonEQSettingsCallback(void *ptr) {
   EQf4Val.setValue(uint32_t(f4Gain * 12));
 }
 
+//callback to the reset button in the settings
 void buttonEQResetCallback(void *ptr) {
   f0Gain = 0;
   f1Gain = 0;
@@ -997,9 +1024,10 @@ void buttonEQResetCallback(void *ptr) {
   f3Gain = 0;
   f4Gain = 0;
 
-  sgtl5000_1.eqBands(f0Gain, f1Gain, f2Gain, f3Gain, f4Gain);
+  sgtl5000_1.eqBands(f0Gain, f1Gain, f2Gain, f3Gain, f4Gain); //reset equalizer
 }
 
+//callback for first slider of equalizer to get the set value
 void EQf0SliderCallback(void *ptr) {
   uint32_t f0Gain_dB = 0;
   EQf0Slider.getValue(&f0Gain_dB);
@@ -1007,6 +1035,7 @@ void EQf0SliderCallback(void *ptr) {
   sgtl5000_1.eqBand(0, f0Gain);
 }
 
+//callback for the plus button of f0
 void EQf0ButPCallback(void *ptr) {
   uint32_t f0Gain_dB = 0;
   EQf0Val.getValue(&f0Gain_dB);
@@ -1014,6 +1043,7 @@ void EQf0ButPCallback(void *ptr) {
   sgtl5000_1.eqBand(0, f0Gain);
 }
 
+//callback for the minus button of f0
 void EQf0ButMCallback(void *ptr) {
   uint32_t f0Gain_dB = 0;
   EQf0Val.getValue(&f0Gain_dB);
@@ -1021,6 +1051,7 @@ void EQf0ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(0, f0Gain);
 }
 
+//Callback for second slider of equalizer to get the set value
 void EQf1SliderCallback(void *ptr) {
   uint32_t f1Gain_dB = 0;
   EQf1Slider.getValue(&f1Gain_dB);
@@ -1028,6 +1059,7 @@ void EQf1SliderCallback(void *ptr) {
   sgtl5000_1.eqBand(1, f1Gain);
 }
 
+//callback for the plus button of f1
 void EQf1ButPCallback(void *ptr) {
   uint32_t f1Gain_dB = 0;
   EQf1Val.getValue(&f1Gain_dB);
@@ -1035,6 +1067,7 @@ void EQf1ButPCallback(void *ptr) {
   sgtl5000_1.eqBand(1, f1Gain);
 }
 
+//callback for the minus button of f1
 void EQf1ButMCallback(void *ptr) {
   uint32_t f1Gain_dB = 0;
   EQf1Val.getValue(&f1Gain_dB);
@@ -1042,6 +1075,7 @@ void EQf1ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(1, f1Gain);
 }
 
+//Callback for third slider of equalizer to get the set value
 void EQf2SliderCallback(void *ptr) {
   uint32_t f2Gain_dB = 0;
   EQf2Slider.getValue(&f2Gain_dB);
@@ -1049,6 +1083,7 @@ void EQf2SliderCallback(void *ptr) {
   sgtl5000_1.eqBand(2, f2Gain);
 }
 
+//callback for the plus button of f2
 void EQf2ButPCallback(void *ptr) {
   uint32_t f2Gain_dB = 0;
   EQf2Val.getValue(&f2Gain_dB);
@@ -1056,6 +1091,7 @@ void EQf2ButPCallback(void *ptr) {
   sgtl5000_1.eqBand(2, f2Gain);
 }
 
+//callback for the minus button of f2
 void EQf2ButMCallback(void *ptr) {
   uint32_t f2Gain_dB = 0;
   EQf2Val.getValue(&f2Gain_dB);
@@ -1063,6 +1099,7 @@ void EQf2ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(2, f2Gain);
 }
 
+//Callback for fourth slider of equalizer to get the set value
 void EQf3SliderCallback(void *ptr) {
   uint32_t f3Gain_dB = 0;
   EQf3Slider.getValue(&f3Gain_dB);
@@ -1070,6 +1107,7 @@ void EQf3SliderCallback(void *ptr) {
   sgtl5000_1.eqBand(3, f3Gain);
 }
 
+//callback for the plus button of f3
 void EQf3ButPCallback(void *ptr) {
   uint32_t f3Gain_dB = 0;
   EQf3Val.getValue(&f3Gain_dB);
@@ -1077,6 +1115,7 @@ void EQf3ButPCallback(void *ptr) {
   sgtl5000_1.eqBand(3, f3Gain);
 }
 
+//callback for the minus button of f3
 void EQf3ButMCallback(void *ptr) {
   uint32_t f3Gain_dB = 0;
   EQf3Val.getValue(&f3Gain_dB);
@@ -1084,6 +1123,7 @@ void EQf3ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(3, f3Gain);
 }
 
+//Callback for fifth slider of equalizer to get the set value
 void EQf4SliderCallback(void *ptr) {
   uint32_t f4Gain_dB = 0;
   EQf4Slider.getValue(&f4Gain_dB);
@@ -1092,6 +1132,7 @@ void EQf4SliderCallback(void *ptr) {
   sgtl5000_1.eqBand(4, f4Gain);
 }
 
+//callback for the plus button of f4
 void EQf4ButPCallback(void *ptr) {
   uint32_t f4Gain_dB = 0;
   EQf4Val.getValue(&f4Gain_dB);
@@ -1099,6 +1140,7 @@ void EQf4ButPCallback(void *ptr) {
   sgtl5000_1.eqBand(4, f4Gain);
 }
 
+//callback for the minus button of f4
 void EQf4ButMCallback(void *ptr) {
   uint32_t f4Gain_dB = 0;
   EQf4Val.getValue(&f4Gain_dB);
@@ -1106,19 +1148,24 @@ void EQf4ButMCallback(void *ptr) {
   sgtl5000_1.eqBand(4, f4Gain);
 }
 
-//Callbacks Spectrum
+//Callbacks for the spectrum analyzer
+
+//callback to apply the averages
 void ApplyAveCallback(void *ptr) {
   uint32_t blockAve = 0;
   AveBlocks.getValue(&blockAve);
   thirdOctValues.setAverages(double(blockAve));
 }
 
+//callback to return to the menu and stop the analyzer
 void SpecMenuCallback(void *ptr) {
   analyzeActiv = false;
   Serial.println("Quit Spectrum");
   thirdOctValues.reset(dataVec);
 }
 
+//AGC Callbacks
+//callback to AGC button to enable or disable the AGC from the recording screen
 void AGCButtonCallback(void *ptr)
 {
   Serial.println("AGC Button Press");
@@ -1134,76 +1181,63 @@ void AGCButtonCallback(void *ptr)
   }
 }
 
-void sliderSetPointCallback(void *ptr){
-  uint32_t SetPointVal = 0;
-  sliderSetPoint.getValue(&SetPointVal);
-  SetPoint = -20.0 + double(SetPointVal);
-  agc.setSetpoint(SetPoint);
-  Serial.println("SetPoint changed");
+//callback to the hangtime slider
+void sliderAGCChangCallback(void *ptr)
+{
+  sliderAGCChang.getValue(&hangSetting);
+  agc.setAGChangtime(hangSetting);
 }
 
-void sliderRangeCallback(void *ptr){
-  uint32_t RangeVal = 0;
-  sliderRange.getValue(&RangeVal);
-  Range = double(RangeVal);
-  agc.setRange(Range);
-  Serial.println("Range changed");
+
+//callback to the slopetime slider
+void sliderAGCslopeIncCallback(void *ptr)
+{
+  sliderAGCslopeInc.getValue(&slopeIncSetting);
+  agc.setAGCslopeInc(slopeIncSetting);
 }
 
-void sliderReactCallback(void *ptr){
-  sliderReact.getValue(&ReactVal);
-  if(ReactVal == 1){
-    timeConst = AGC::timeConstants::fast;
-    Serial.println("TimeConst = fast");
-  }
-  if(ReactVal == 2){
-    timeConst = AGC::timeConstants::medium;
-    Serial.println("TimeConst = medium");
-  }
-  if(ReactVal == 3){
-    timeConst = AGC::timeConstants::slow;
-    Serial.println("TimeConst = slow");
-  }
-  if(ReactVal == 4){
-    timeConst = AGC::timeConstants::veryslow;
-    Serial.println("TimeConst = veryslow");
-  }
-  agc.setTimeConst(timeConst);
-  Serial.println("Time const changed");
+//callback to the decrease slider
+void sliderAGCslopeDecCallback(void *ptr)
+{
+  sliderAGCslopeDec.getValue(&slopeDecSetting);
+  agc.setAGCslopeDec(slopeDecSetting);
 }
 
-void sliderRatioCallback(void *ptr){
-  uint32_t RatioVal = 0;
-  sliderRatio.getValue(&RatioVal);
-  Ratio = double(RatioVal);
-  agc.setRatio(Ratio);
+//callback to the threshold slider
+void sliderAGCthreshCallback(void *ptr)
+{
+  sliderAGCthresh.getValue(&threshSetting);
+  AGCthresh = (double(threshSetting)+10)/100;
+  agc.setAGCthresh(AGCthresh);
 }
 
-void buttonApplyDCallback(void *ptr) {
-  Serial.println("Hello");
-  NumDay.getValue(&Day);
-  delay(5);
-  NumMonth.getValue(&Month);
-  delay(5);
-  NumYear.getValue(&Year);
-  setTime(hours, mins, secs, Day, Month, Year);
-  SdFile::dateTimeCallback(dateTime);
-}
-
-void buttonApplyTCallback(void *ptr) {
-  Serial.println("Hello");
-  NumHour.getValue(&hours);
-  delay(5);
-  NumMin.getValue(&mins);
-  delay(5);
-  NumSec.getValue(&secs);
-  setTime(hours, mins, secs, Day, Month, Year);
-  SdFile::dateTimeCallback(dateTime);
-}
-
+//callback to set the correct values to the slider when entering the AGC settings
 void buttonAGCSetCallback(void *ptr) {
-  sliderSetPoint.setValue(uint32_t(SetPoint)+20);
-  sliderRange.setValue(uint32_t(Range));
-  sliderReact.setValue(ReactVal);
-  sliderRatio.setValue(uint32_t(Ratio));
+  sliderAGCChang.setValue(hangSetting);
+  sliderAGCslopeInc.setValue(slopeIncSetting);
+  sliderAGCslopeDec.setValue(slopeDecSetting);
+  sliderAGCthresh.setValue(threshSetting);
+}
+
+//callbacks for date settings
+//callback to the apply date button 
+void buttonApplyDCallback(void *ptr) {
+  NumDay.getValue(&Day); //get the day
+  delay(5);
+  NumMonth.getValue(&Month); //get the month
+  delay(5);
+  NumYear.getValue(&Year); //get the year
+  setTime(hours, mins, secs, Day, Month, Year); //set the time
+  SdFile::dateTimeCallback(dateTime);
+}
+
+//callback to the apply time button
+void buttonApplyTCallback(void *ptr) {
+  NumHour.getValue(&hours); //get the hours
+  delay(5);
+  NumMin.getValue(&mins); //get the minutes
+  delay(5);
+  NumSec.getValue(&secs); //get the seconds
+  setTime(hours, mins, secs, Day, Month, Year); //set the time
+  SdFile::dateTimeCallback(dateTime);
 }
