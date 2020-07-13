@@ -1,5 +1,5 @@
 /*
-Copyright 2020 <Name>
+Copyright 2020 Tammo Sander
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -18,11 +18,9 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-<kurze Erklärung, auf Englisch>
 
-To Do
---> Links zu Quellen ggf.
---> nicht selbsterklärende Stellen im Code kommentieren
+This file contains functions that are used in the file browser of this Project.
+For example a function to compute the name of the file or the size of a file.
 */
 
 #pragma once
@@ -34,14 +32,25 @@ public:
 	FileBrowser();
 	~FileBrowser();
 
+	//function to compute and generate the file name
 	void computeCurName(char* lastFilename, unsigned int flagUpDown);
+	//function to compute and generate the displayable file size char array 
+	void computeFileSizeChar(char* Size, unsigned long len_byte);
+	//function to compute and generate the displayable file length char array
+	void computeFileLenChar(char* Len, unsigned long len_byte);
+	//function to compute and generate the displayable available Memory (bytes and time) char array
 	void computeAvailableMemory(char* Memory, unsigned long long SDsize_bytes, unsigned long long MemoryUsed_bytes, unsigned long long availableMemory, unsigned long availableTime);
+	//function to create the available Memory char array
 	void createMemoryChar(char* Memory, unsigned long long availableMemory, unsigned long availableTime);
+	//function to create the file size char array
+	void createSizeChar(char* size_Char, unsigned long long size);
+	//function to create the file length char array
+	void createLenChar(char* len_Char, unsigned long len);
 
 private:
-	unsigned int m_fs;
-	unsigned int m_bitDepth;
-	unsigned int m_nrOfChannels;
-	unsigned int m_bytesPerSecond;
+	unsigned int m_fs;				//samplingrate
+	unsigned int m_bitDepth;		//bit depth
+	unsigned int m_nrOfChannels;	//number of channels
+	unsigned int m_bytesPerSecond;	//bytes per second
 };
 
