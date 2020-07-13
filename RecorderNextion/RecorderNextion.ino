@@ -1,3 +1,30 @@
+/*
+Copyright 2020 <Martin Berdau, Tammo Sander>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR
+A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+<Main File of the Project, containing little Functions, which weren't outsourced, 
+as well as functions to comunicate with the Nextion Display.
+This code ist based on the Recorder-Example from the Audio-library.>
+*/
+
+
 // QUELLE: TIMESTAMP: https://forum.arduino.cc/index.php?topic=348562.0
 //
 // Editiertes Beispiel-File.
@@ -77,7 +104,7 @@ elapsedMillis            TimerAGC;
 //-----------------------------------------------------------------------------------------
 // BUTTONS
 //-----------------------------------------------------------------------------------------
-// recorder
+// Buttons used on the recording screen
 NexButton buttonRecord = NexButton(0, 3, "Record");
 NexButton buttonStop = NexButton(0, 2, "Stop");
 NexButton buttonPlay = NexButton(0, 1, "Play");
@@ -92,7 +119,7 @@ NexText textTimer = NexText(0, 7, "Timer");
 NexText textFile = NexText(0, 8, "FileName");
 NexText textAvailable = NexText(0, 13, "Verfg");
 
-// file browser
+// Elements used in the file browser
 NexText textWavFile = NexText(2, 1, "WavFile");
 NexText textWavSize = NexText(2, 10, "WavSize");
 NexText textWavLen = NexText(2, 12, "WavLen");
@@ -102,18 +129,17 @@ NexButton buttonStopWav = NexButton(2, 3, "WavStop");
 NexButton buttonWavUp = NexButton(2, 4, "WavUp");
 NexButton buttonWavDown = NexButton(2, 5, "WavDown");
 
-// menu buttons
+// Menu buttons
 NexButton buttonRecorder = NexButton(1, 3, "Recorder");
 NexButton buttonPlayer = NexButton(1, 2, "FileBrowser");
 NexButton buttonSpectrum = NexButton(1, 7, "Spectrum");
 NexButton buttonAGCSet = NexButton(1, 6, "AGCSettings");
 
-// recorder settings
+// Buttons recorder settings
 NexButton buttonEQSettings = NexButton(3, 8, "EQSettings");
 NexButton buttonEQReset = NexButton(3, 9, "EQReset");
-//Hier noch einstellungen fuer Datum Uhrzeit etc.
 
-// eq items
+// Elements used in the Equalizer
 NexSlider EQf0Slider = NexSlider(5, 2, "EQSlider0");
 NexButton EQf0ButP = NexButton(5, 8, "EQf0p");
 NexButton EQf0ButM = NexButton(5, 18, "EQf0m");
@@ -135,7 +161,7 @@ NexButton EQf4ButP = NexButton(5, 12, "EQf4p");
 NexButton EQf4ButM = NexButton(5, 22, "EQf4m");
 NexNumber EQf4Val = NexNumber(5, 17, "Valf4");
 
-// fft items
+// Items used in the Spectrum-Analyzer
 NexProgressBar f0Band = NexProgressBar(6, 2, "f0FFT");
 NexProgressBar f1Band = NexProgressBar(6, 3, "f1FFT");
 NexProgressBar f2Band = NexProgressBar(6, 4, "f2FFT");
@@ -156,14 +182,14 @@ NexNumber AveBlocks = NexNumber(6, 23, "ValAve");
 NexButton ApplyAve = NexButton(6, 24, "ApplyAve");
 NexButton SpecMenu = NexButton(6, 19, "Menu");
 
-// agc
+// Elements used for the AGC settings
 NexButton buttonAGC = NexButton(0, 16, "AGC");
 NexSlider sliderSetPoint = NexSlider(4,4,"SliderSetPoint");
 NexSlider sliderRange = NexSlider(4,7,"SliderRange");
 NexSlider sliderReact = NexSlider(4,10,"SliderReact");
 NexSlider sliderRatio = NexSlider(4,17,"SliderRatio");
 
-// date settings
+// Elements used for date settings
 NexButton buttonApplyD = NexButton(7, 16, "ApplyD");
 NexButton buttonApplyT = NexButton(7, 28, "ApplyT");
 NexNumber NumDay = NexNumber(7, 5, "Day");
@@ -226,16 +252,17 @@ NexTouch *nex_listen_list[] =
 //-----------------------------------------------------------------------------------------
 // GENERAL SETTINGS
 //-----------------------------------------------------------------------------------------
-int inputMode = 1;
-int myInput = AUDIO_INPUT_LINEIN;
+int inputMode = 1; //Input mode: 0 = internal mic, 1 = external mic , 2 = line-in
+int myInput = AUDIO_INPUT_LINEIN; //set line input as used input
 
-#define SDCARD_CS_PIN    10
+//define pins connecting teensy 4.0 and Audio shield
+#define SDCARD_CS_PIN    10 
 #define SDCARD_MOSI_PIN  11
 #define SDCARD_SCK_PIN   13
 
-int mode = 0;  // 0=stopped, 1=recording, 2=playing
-double InGain = 1.0;
-double HpVol = 0.5; //Headphone Volume
+int mode = 0;  //recording mode: 0=stopped, 1=recording, 2=playing
+double InGain = 1.0; //input gain (gain = 1.0 (bypass), gain < 1.0 (attenuation), gain > 1.0 (amplification)
+double HpVol = 0.5; //Headphone volume
 bool muted = false;
 
 // file where data is recorded
@@ -244,65 +271,75 @@ File frec;
 //-----------------------------------------------------------------------------------------
 // FILE BROWSER
 //-----------------------------------------------------------------------------------------
-// needed variables for saving stuff
-FileBrowser filebrowser;
-int fileCount = 0;
-char filename[] = "RECORD01.WAV";
-char lastSave[] = "RECORD01.WAV";
-char MemoryDisp[] = "16,00 GB / 00:00:00";
-uint32_t availableMemory_byte = 0;
-uint32_t availableTime_sec = 0;
-uint32_t usedMemory = 0;
-Sd2Card card;
-SdVolume volume;
-File root;
-double volumesize = 0.0;
-unsigned long long SDSize = 0;
+//variables used on main recording screen
+FileBrowser filebrowser; //create object to use file browser
+int fileCount = 0; //Number of files on the sd card
+char filename[] = "RECORD01.WAV"; //standard file name
+char lastSave[] = "RECORD01.WAV"; //copy of standard file name
+char MemoryDisp[] = "16,00 GB / 00:00:00"; //char array to display available Memory and recording time
+uint32_t availableMemory_byte = 0; //available Memory in bytes
+uint32_t availableTime_sec = 0; //available recording time in sceonds
+uint32_t usedMemory = 0;  //used memory in bytes
+Sd2Card card; //sd card object
+SdVolume volume; //sd volume object
+File root; //root file to compute used memory
+double volumesize = 0.0; //volume size in bytes
+unsigned long long SDSize = 0; //sd card size
+bool saved = false; //bool to check if file is already saved
 
-char CurWav[] = "RECORD01.WAV";
-char WavSizeChar[] = "00.00 GB";
-char WavLenChar[] = "00:00:00";
-int WavCount = 0;
-File WavFile;
-bool saved = false;
+//variables used on file browser screen
+char CurWav[] = "RECORD01.WAV"; //current file name
+char WavSizeChar[] = "00.00 GB"; //current file size
+char WavLenChar[] = "00:00:00"; //current file length
+int WavCount = 0; //counter which file is selected
+File WavFile; //file to open current file
+
 
 //-----------------------------------------------------------------------------------------
 // WAVE HEADER
 //-----------------------------------------------------------------------------------------
+//variables used to write the wave header
 WaveHeader waveheader;
-unsigned long recByteSaved = 0L;
+unsigned long recByteSaved = 0L; //saved bytes
+unsigned long bytesPerSample = 2L; //Bytes per sample
 
 //-----------------------------------------------------------------------------------------
 // RMS-METER
-//-----------------------------------------------------------------------------------------
-double tau = 0.125;
-double f_refresh = 4;
-RMSLevel rmsMeter(tau, f_refresh);
-bool checkLvl = false;
-unsigned int dispDelay = 1000 / f_refresh;
+//----------------------------------------------------------------------------------------
+//Variables used in the RMS-Meter
+double tau = 0.125; //time constant in seconds (125 ms = fast)
+double f_refresh = 4; //refreshrate in Hertz
+RMSLevel rmsMeter(tau, f_refresh); 
+bool checkLvl = false; //bool if level shall be checked
+unsigned int dispDelay = 1000 / f_refresh; //refresh rate of displaying level
 
 //-----------------------------------------------------------------------------------------
 // AUTOMATIC GAIN CONTROL
 //-----------------------------------------------------------------------------------------
-AGC agc;
-bool AGCOn = false;
-double f_agc = 100;
-unsigned int AGCRefresh = 1000/f_agc;
-double SetPoint = -14.0;
-double Range = 6.0;
-AGC::timeConstants timeConst = AGC::timeConstants::medium;
-double Ratio = 5.0;
-uint32_t ReactVal = 2;
+//Variables used in the AGC
+AutomaticGainControl agc; 
+bool AGCOn = false;   //bool if level shall be checked
+double peak; //peak level
+double AGCgain; //linear gain 
+double AGCthresh; //linear threshold
+
+//initial settings for the AGC
+uint32_t hangSetting = 3;
+uint32_t slopeIncSetting = 2;
+uint32_t slopeDecSetting = 2;
+uint32_t threshSetting = 90;
 
 //-----------------------------------------------------------------------------------------
 // RUNNING TIME LABEL
 //-----------------------------------------------------------------------------------------
+//Variables used to display running time labels
 RunningTimeLabel tLabel;
 char TimerVal[] = "00:00:00";
 
 //-----------------------------------------------------------------------------------------
 // EQ
 //-----------------------------------------------------------------------------------------
+//Variables used in the Equalizer, initalized with a flat 0 dB gain
 double f0Gain = 0.0;
 double f1Gain = 0.0;
 double f2Gain = 0.0;
@@ -310,19 +347,21 @@ double f3Gain = 0.0;
 double f4Gain = 0.0;
 
 //-----------------------------------------------------------------------------------------
-// FFT
+// SPECTRUM ANALYZER
 //-----------------------------------------------------------------------------------------
-static const int nrOfBands = 16;
-double dataVec[nrOfBands];
-double averages = 50;
+//Variables for the spectrum analyzer
+static const int nrOfBands = 16; //Number of displayed frequency bands
+double dataVec[nrOfBands]; //Vector containing the data
+double averages = 50; //averages
 thirdOctAnalyze thirdOctValues(averages);
-bool analyzeActiv = false;
-unsigned int FFTupdate = 1000 / 20;
-int bandCounter = 0;
+bool analyzeActiv = false; //bool if spectrum analyzer is active
+unsigned int FFTupdate = 1000 / 20; //refreshrate of displaying spectrum
+int bandCounter = 0; //counter which band is displayed
 
 //-----------------------------------------------------------------------------------------
 // DATE
 //-----------------------------------------------------------------------------------------
+//Variables used to set Date
 char timestamp[30];
 uint32_t Day = 1;
 uint32_t Month = 1;
@@ -334,29 +373,35 @@ uint32_t secs = 0;
 //-----------------------------------------------------------------------------------------
 // SETUP
 //-----------------------------------------------------------------------------------------
+//Setup function, which is called once at start of the programm
 void setup() {
-
+  //initialize Nextion display and set baud rate to 115200 Hz
   nexInit();
   Serial1.print("baud=115200");
   Serial1.write(0xff);
   Serial1.write(0xff);
   Serial1.write(0xff);
   Serial1.end();
-
   Serial1.begin(115200);
-
+  
+  //set Audiomemory to 256 samples
   AudioMemory(256);
-
+  
+  //enable sgtl5000, audio preprocessor, set standard values to input and volume and select
+  //Equalizer
   sgtl5000_1.enable();
   sgtl5000_1.inputSelect(myInput);
   sgtl5000_1.volume(HpVol);
   sgtl5000_1.audioPreProcessorEnable();
   sgtl5000_1.eqSelect(3);
 
+  //set input gain to standard value (1.0)
   amp1.gain(InGain);
 
+  //set Pins to connect Teensy and Audio shield
   SPI.setMOSI(SDCARD_MOSI_PIN);
   SPI.setSCK(SDCARD_SCK_PIN);
+  //check if sd card is enable
   if (!(SD.begin(SDCARD_CS_PIN))) {
     while (1) {
       Serial.println("Unable to access the SD card");
@@ -365,24 +410,21 @@ void setup() {
   }
 
   // calculating sd card size
-  // Source: Examples/SD/Cardinfo
+  // Source from Arduino IDE: Examples/SD/Cardinfo
   card.init(SPI_HALF_SPEED, SDCARD_CS_PIN);
   volume.init(card);
-
   SDSize = volume.blocksPerCluster();
   SDSize *= volume.clusterCount();
   volumesize = SDSize;
   SDSize *= 512;
   Serial.print("Volume size (Kbytes): ");
   volumesize /= 2;
-  Serial.println(volumesize);
   Serial.print("Volume size (Mbytes): ");
   volumesize /= 1024;
-  Serial.println(volumesize);
   Serial.print("Volume size (Gbytes): ");
   volumesize /= 1024;
-  Serial.println(volumesize);
 
+  //open file tree, compute used memory and check current file
   root = SD.open("/");
   computeUsedMemory(root);
   checkCurrentFile();
@@ -434,7 +476,8 @@ void setup() {
   sliderRatio.attachPop(sliderRatioCallback);
   buttonApplyD.attachPush(buttonApplyDCallback);
   buttonApplyT.attachPush(buttonApplyTCallback);
-
+  
+  //set global time to initial values
   setTime(hours, mins, secs, Day, Month, Year);
   SdFile::dateTimeCallback(dateTime);
 }
@@ -446,7 +489,7 @@ void loop() {
   // Respond to button presses
   nexLoop(nex_listen_list);
 
-  // If we're playing or recording, carry on...
+  // by checking which mode, record or play
   switch (mode) {
     case 0:
       break;
@@ -458,11 +501,11 @@ void loop() {
       break;
   }
 
+  //if diplay timer is greater than disp delay, display the current level
   if (TimerDisp >= dispDelay) {
     if (checkLvl) {
       displayLvl();
     }
-
     if (mode == 1 || mode == 2) {
       tLabel.updateLabel(TimePassed, TimerVal);
       textTimer.setText(TimerVal);
@@ -471,6 +514,7 @@ void loop() {
     TimerDisp -= dispDelay;
   }
 
+  //if fft timer is greater than fft update delay, display fft
   if (TimerFFT >= FFTupdate) {
     if (analyzeActiv) {
       UpdateFFTValue();
@@ -478,6 +522,7 @@ void loop() {
     TimerFFT -= FFTupdate;
   }
 
+  //if AGC timer is greater than AGC refresh delay, call AGC
   if (TimerAGC >= AGCRefresh)
   {
     if (AGCOn) {
@@ -490,54 +535,62 @@ void loop() {
 //-----------------------------------------------------------------------------------------
 // BASIC FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//functions to start continue and end recording, based on Example: RECORDER.ino from the Audio library by Paul Stoffregen
+//Source: https://github.com/PaulStoffregen/Audio
 void startRecording() {
   Serial.println("startRecording");
+  //check if current file exists, if so remove it
   if (SD.exists(filename)) {
     SD.remove(filename);
   }
+  //open file
   frec = SD.open(filename, FILE_WRITE);
   if (frec) {
-    queue1.begin();
-    mode = 1;
-    checkLvl = true;
-    recByteSaved = 0L;
-    TimePassed = 0;
+    queue1.begin(); //begin queue
+    mode = 1; //set mode to recording
+    checkLvl = true; //to display level
+    recByteSaved = 0L; //reset file size
+    TimePassed = 0; //reset timer
   }
 }
 
+//function to continue recording by witing bytes from queue to file
 void continueRecording() {
   if (queue1.available() >= 2) {
-    byte buffer[512];
-    memcpy(buffer, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
-    memcpy(buffer + 256, queue1.readBuffer(), 256);
-    queue1.freeBuffer();
-    frec.write(buffer, 512);
-    recByteSaved += 512;                                // Addiert in jedem Durchlauf 512 Bytes
+    byte buffer[512]; //audio buffer
+    memcpy(buffer, queue1.readBuffer(), 256); //write 256 samples from queue to buffer
+    queue1.freeBuffer(); //erase samples from queue
+    memcpy(buffer + 256, queue1.readBuffer(), 256); //write 256 samples from queue to end of buffer
+    queue1.freeBuffer(); //erase samples from queue
+    frec.write(buffer, 512); //write 512 samples from buffer to file
+    recByteSaved += (512*bytesPerSample); //add 1024 bytes to file size
   }
 }
 
+//function to stop recording
 void stopRecording() {
   Serial.println("stopRecording");
-  queue1.end();
+  queue1.end(); //end queue
   if (mode == 1) {
     while (queue1.available() > 0) {
-      frec.write((byte*)queue1.readBuffer(), 256);
-      queue1.freeBuffer();
-      recByteSaved += 256;                                        // Addiert die letzten 256 Bytes bei Aufnahme-Stopp
+      frec.write((byte*)queue1.readBuffer(), 256); //write the last 256 samples to the file
+      queue1.freeBuffer(); //erase samples from queue
+      recByteSaved += (256*bytesPerSample); //add the last 512 bytes to file length                                      
     }
   }
-  waveheader.writeWaveHeader(recByteSaved, frec);                 // Schreibt den Wave-Header auf die SD-Karte
-  mode = 0;
-  checkLvl = false;
-  saved = false;
-  TimePassed = 0;
+  waveheader.writeWaveHeader(recByteSaved, frec); //write header to file
+  mode = 0; //set mode back to 0
+  checkLvl = false; //enable display level
+  saved = false; //file can be overwritten
+  TimePassed = 0; // reset timer
 }
 
-
+////functions to start, continue and end playing, based on Example: WavFilePlayer.ino from the Audio library by Paul Stoffregen
+//Source: https://github.com/PaulStoffregen/Audio
 void startPlaying() {
   Serial.println("startPlaying");
-  TimePassed = 0;
+  TimePassed = 0; //reset timer
+  //check if file was saved already, to choose which one shall be played
   if (saved == true)
   {
     playFile(lastSave);
@@ -553,41 +606,44 @@ void startPlaying() {
 
 }
 
+//function to play file
 void playFile(const char *filename)
 {
   Serial.print("Playing file: ");
   Serial.println(filename);
-
-  // Start playing the file.  This sketch continues to
-  // run while the file plays.
-  playSdWav1.play(filename);
-
-  // A brief delay for the library read WAV info
-  delay(5);
+  playSdWav1.play(filename); //begin to play file
+  delay(5); //a delay to read data properly
 }
 
+//function continue playing
 void continuePlaying() {
+  //check if the file is still playing, if not stop and change mode
   if (!playSdWav1.isPlaying()) {
     playSdWav1.stop();
     mode = 0;
   }
 }
 
+//function to stop playing
 void stopPlaying() {
   Serial.println("stopPlaying");
-  if (mode == 2) playSdWav1.stop();
-  mode = 0;
-  TimePassed = 0;
+  if (mode == 2) playSdWav1.stop(); //stop playing the file
+  mode = 0; //set mode to 0
+  TimePassed = 0; //reset timer
 }
 
 //-----------------------------------------------------------------------------------------
 // DISPLAY FUNCTIONS
 //-----------------------------------------------------------------------------------------
+//functions used to display infos for the user
+
+//function thats called in loop to refresh the display
 void displayRefresh() {
   if (checkLvl) {
     displayLvl();
   }
 }
+
 
 void displayLvl() {
   uint32_t ProgBarVal = uint32_t(100 * (1 - (rmsMeter.updateRMS(double(peak1.read())) / -80)));
@@ -680,7 +736,6 @@ void SetPlayingInput() {
 //-----------------------------------------------------------------------------------------
 void dateTime(uint16_t* date, uint16_t* time) {
   time_t t = now();
-  //sprintf(timestamp, "%02d:%02d:%02d %2d/%2d/%2d \n", hour(t),minute(t),second(t),month(t),day(t),year(t)-2000);
   // return date using FAT_DATE macro to format fields
   *date = FAT_DATE(year(t), month(t), day(t));
 
