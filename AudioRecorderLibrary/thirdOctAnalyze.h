@@ -1,5 +1,5 @@
 /*
-Copyright 2020 <Name>
+Copyright 2020 Martin Berdau
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -18,12 +18,16 @@ COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
 IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-<kurze Erklärung, auf Englisch>
-
-To Do
---> Links zu Quellen ggf.
---> nicht selbsterklärende Stellen im Code kommentieren
-*/
+This file computes a third octave spectrum from a fft from 100 to 4000 Hz (when
+using a sampling frequency of 44100 Hz) by adding fft bins according to third
+octave filter bandwidth. 
+ 
+ Source:
+ logarithmische Aufteilung der Bänder:
+ https://forum.pjrc.com/threads/32677-Is-there-a-logarithmic-function-for-FFT-bin-selection-for-any-given-of-bands?p=142524&viewfull=1#post142524
+ 3rd Oct:
+ https://forum.pjrc.com/threads/32677-Is-there-a-logarithmic-function-for-FFT-bin-selection-for-any-given-of-bands?p=94941&viewfull=1#post94941
+ */
 
 #pragma once
 #include <Arduino.h>
