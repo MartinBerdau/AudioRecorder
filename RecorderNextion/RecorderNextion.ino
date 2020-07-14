@@ -164,10 +164,10 @@ NexButton SpecMenu = NexButton(6, 19, "Menu");
 
 // Elements used for the AGC settings
 NexButton buttonAGC = NexButton(0, 16, "AGC");
-NexSlider sliderSetPoint = NexSlider(4,4,"SliderSetPoint");
-NexSlider sliderRange = NexSlider(4,7,"SliderRange");
-NexSlider sliderReact = NexSlider(4,10,"SliderReact");
-NexSlider sliderRatio = NexSlider(4,17,"SliderRatio");
+NexSlider sliderAGCChang = NexSlider(4, 6, "AGCChang");
+NexSlider sliderAGCslopeInc = NexSlider(4, 7, "AGCslopeInc");
+NexSlider sliderAGCslopeDec = NexSlider(4, 8, "AGCslopeDec");
+NexSlider sliderAGCthresh = NexSlider(4, 28, "AGCthresh");
 
 // Elements used for date settings
 NexButton buttonApplyD = NexButton(7, 16, "ApplyD");
@@ -220,10 +220,10 @@ NexTouch *nex_listen_list[] =
   &ApplyAve,
   &SpecMenu,
   &buttonAGC,
-  &sliderSetPoint,
-  &sliderRange,
-  &sliderReact,
-  &sliderRatio,
+  &sliderAGCChang,
+  &sliderAGCslopeInc,
+  &sliderAGCslopeDec,
+  &sliderAGCthresh,
   &buttonApplyD,
   &buttonApplyT,
   NULL
@@ -302,6 +302,7 @@ bool AGCOn = false;   //bool if level shall be checked
 double peak; //peak level
 double AGCgain; //linear gain 
 double AGCthresh; //linear threshold
+unsigned int AGCRefresh = 2; //refreshrate
 
 //initial settings for the AGC
 uint32_t hangSetting = 3;
@@ -450,10 +451,10 @@ void setup() {
   ApplyAve.attachPush(ApplyAveCallback);
   SpecMenu.attachPush(SpecMenuCallback);
   buttonAGC.attachPush(AGCButtonCallback);
-  sliderSetPoint.attachPop(sliderSetPointCallback);
-  sliderRange.attachPop(sliderRangeCallback);
-  sliderReact.attachPop(sliderReactCallback);
-  sliderRatio.attachPop(sliderRatioCallback);
+  sliderAGCChang.attachPop(sliderAGCChangCallback);
+  sliderAGCslopeInc.attachPop(sliderAGCslopeIncCallback);
+  sliderAGCslopeDec.attachPop(sliderAGCslopeDecCallback);
+  sliderAGCthresh.attachPush(sliderAGCthreshCallback);
   buttonApplyD.attachPush(buttonApplyDCallback);
   buttonApplyT.attachPush(buttonApplyTCallback);
   
@@ -808,7 +809,7 @@ void UpdateFFTValue() {
 //-----------------------------------------------------------------------------------------
 //function to update the automatic gain control
 void useAGC(){
-  InGain = agc.getAGCGain(peak2.read());
+  InGain = agc.getAGC(peak2.read());
   amp1.gain(InGain);
 }
 
