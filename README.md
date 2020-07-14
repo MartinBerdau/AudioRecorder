@@ -35,4 +35,4 @@ Um die GUI zu installieren muss das File *DisplayRecorder.tft* aus dem Display-O
 Das Hauptprogramm *RecorderNextion.ino* im gleichnamigen Ordner kann nun mit Teensyduino auf den Teensy hochgeladen werden.
 
 ## Lizenz
-Der Code ist durch die [MIT-Lizenz](https://opensource.org/licenses/MIT) lizensiert.
+Der Code ist, sofern nicht anders angegeben, durch die [MIT-Lizenz](https://opensource.org/licenses/MIT) lizensiert.
